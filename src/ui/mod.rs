@@ -604,7 +604,11 @@ fn entry_line(item: &MenuItem, selected: bool) -> String {
 /// written at an absolute row and a list pushed into it is painted over rather
 /// than shortened.
 fn description_budget(menu: &MenuState, rows: u16, help_rows: u16, footer_rows: u16) -> u16 {
-    if !menu.items().iter().any(|item| item.help.is_some()) {
+    // The whole frame, not what the filter left: a search that happens to
+    // exclude every entry with a `help` would otherwise take the block away
+    // mid-keystroke and move the bottom of the list, which is the thing this
+    // reservation exists to prevent.
+    if !menu.frame().items.iter().any(|item| item.help.is_some()) {
         return 0;
     }
     let spare = rows.saturating_sub(CHROME_ROWS + help_rows + footer_rows + 1);
@@ -1538,6 +1542,27 @@ mod tests {
         };
 
         assert_eq!(row_of(&on_described, "item 7"), row_of(&on_plain, "item 7"));
+    }
+
+    #[test]
+    fn a_search_that_hides_every_description_keeps_the_block() {
+        // The reservation is a property of the menu, not of what the filter
+        // left: taking it away as the query narrows would move the bottom of
+        // the list while the user is still typing.
+        let items = vec![
+            MenuItem {
+                help: Some("a description".into()),
+                ..MenuItem::command("described", "echo hi")
+            },
+            MenuItem::command("plain", "echo hi"),
+        ];
+        let mut menu = MenuState::new(Frame::new("title", items));
+        let unfiltered = description_budget(&menu, 20, 0, 1);
+
+        menu.set_query("plain".into());
+
+        assert_eq!(menu.items().len(), 1, "the filter should leave one entry");
+        assert_eq!(description_budget(&menu, 20, 0, 1), unfiltered);
     }
 
     #[test]
