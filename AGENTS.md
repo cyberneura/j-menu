@@ -118,15 +118,20 @@ of any automated check.
 - **The search row is drawn in place of the blank line under the title**, so
   turning the search on does not take a row off the list. `CHROME_ROWS` counts
   that blank line; if the row ever moves, the height arithmetic moves with it.
-- **The selected entry's help is an overlay, not a row of its own.** It starts
-  on the selected row after the label and is drawn *over* the entries below
-  (`inline_help_runs`, `covered` in `ui::render`). Giving it rows would move
-  every entry under the cursor on each keystroke, which is the bug it was
-  written for (CYBERNEURA-DEV-582). The list height must not depend on it.
-  What does not fit is dropped. `detail_help` wraps the same text over as much
-  as half the screen in the detail view, which is where a long help is read —
-  and drops the rest in its turn, since neither view scrolls. Both caps are
-  documented in `README.md`; move one and the other has to say so.
+- **The selected entry's help is a block above the status line, and the block is
+  reserved for the whole menu.** `description_budget` returns `DESCRIPTION_ROWS`
+  when anything in the menu has a `help` and 0 when nothing does;
+  `description_lines` always fills exactly that many rows, blanks included.
+  **Neither number may depend on the selected entry**: a block sized to the text
+  would move the bottom of the list on every keystroke.
+  It was an overlay drawn over the entries below (CYBERNEURA-DEV-582), which kept
+  the list still but hid the entries it covered — a long description swallowed
+  the next few and there was no way to read them (CYBERNEURA-DEV-696). The block
+  costs those rows from the list instead, and only in menus that have a `help`
+  to show. What does not fit is dropped. `detail_help` wraps the same text over
+  as much as half the screen in the detail view, which is where a long help is
+  read — and drops the rest in its turn, since neither view scrolls. Both caps
+  are documented in `README.md`; move one and the other has to say so.
 - **`Ctrl-C` leaves from everywhere, including the search.** It is the one key
   that always stops what is going on; routing it to "cancel the search" would
   make the search the single place where it does not.

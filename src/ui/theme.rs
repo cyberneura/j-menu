@@ -30,10 +30,6 @@ pub const HELP: Color = Color::Grey;
 /// container is distinguishable from a plain command before the cursor
 /// reaches it.
 pub const CONTAINER: Color = Color::Cyan;
-/// Help drawn on the selected row, which has [`SELECTED_BG`] behind it. The
-/// grey of [`HELP`] disappears into blue, so the same reasoning as [`CURSOR`]
-/// applies: on that background it takes a warm colour to be readable.
-pub const SELECTED_HELP: Color = Color::Yellow;
 /// The `*>` cursor marker, which only ever appears on the selected row. Yellow
 /// rather than green: it is drawn on [`SELECTED_BG`], where green has too
 /// little contrast.

@@ -103,12 +103,14 @@ unfiltered, and going back brings the filter with you. A filtered list keeps
 saying `/…` above it after the search is accepted, so a menu that is missing
 entries never looks like a menu that does not have them.
 
-The `help` of the entry the cursor is on is shown next to it, carrying on over
-the entries below when it does not fit on the row. It is drawn *over* them, not
-between them: the list stays where it is as the cursor walks past entries that
-have help and entries that do not. Help too long for that carries on in the
-detail view, which wraps it over as much as half the screen; a description
-longer than that is cut, in both places.
+The `help` of the entry the cursor is on is shown in a block of its own, just
+above the status line — three rows of it, or fewer on a terminal with no room to
+spare. The block is reserved for the whole menu rather than sized to the entry,
+so the list stays where it is as the cursor walks past entries that have help
+and entries that do not, and a menu where nothing has a `help` spends no rows on
+it at all. Help too long for the block carries on in the detail view, which
+wraps it over as much as half the screen; a description longer than that is cut,
+in both places.
 
 Entries with a detail view are marked with `>`: those are the ones with a
 `submenu`, a `help` text, or both. The view shows the help, the entry's own
@@ -124,8 +126,8 @@ While entering an argument: `Enter` accepts, `Esc` cancels, and the usual
 
 The menu is coloured: a cyan title, entries with a detail view (a submenu, a
 help text, or both) in cyan, the selected row as a blue bar with a yellow `*>`
-marker and its help in yellow after the label, and a status line carrying the
-command preview (or the entry count of a submenu). Only colours the
+marker, the selected entry's help in grey above the status line, and a status
+line carrying the command preview (or the entry count of a submenu). Only colours the
 terminal itself defines (palette entries 0–15) are used, so it follows your
 theme.
 
@@ -231,7 +233,7 @@ shell = "pnpm dev"
 | `title` | Label shown in the menu. Defaults to `shell`. |
 | `shell` | Command, or a list of commands run as one script. |
 | `parallel` | Commands to run at the same time, one shell each. |
-| `help` | Description shown next to the entry, and in the detail view. |
+| `help` | Description shown above the status line while the entry is selected, and in the detail view. |
 | `submenu` | Nested entries, opened with `l` / `→`. |
 | `args` | Values prompted for and substituted into `shell`. |
 | `run_in_current_directory` | Run this entry where `jj` was typed instead of where the file lives. |
