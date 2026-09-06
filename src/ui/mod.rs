@@ -384,19 +384,15 @@ const CHROME_ROWS: u16 = 2;
 /// scroll; past that the rest is cut.
 const MAX_FOOTER_ROWS: u16 = 10;
 
-/// The gap between an entry's label and the help drawn after it on the selected
-/// row.
-const HELP_GAP: usize = 2;
-
-/// Where the rows of help under the selected row start. Past the two columns
-/// the entries themselves are indented by, so a run of help is not read as
-/// another entry when colours are off.
-const HELP_INDENT: usize = 5;
-
-/// How many rows the selected entry's help may cover, counting the selected row
-/// itself. What is left over is dropped — the detail view (`l` / `→`) is where
-/// the whole text is.
-const MAX_INLINE_HELP_ROWS: usize = 4;
+/// How many rows the selected entry's description takes above the status line.
+///
+/// A fixed number rather than however many the text needs, and reserved for the
+/// whole menu rather than per entry: the block sits between the list and the
+/// status line, so a height that followed the selected entry would move the
+/// bottom of the list on every keystroke. Three rows is enough for a sentence
+/// or two at a usual width; what does not fit is left to the detail view
+/// (`l` / `→`), which is where the whole text is.
+const DESCRIPTION_ROWS: u16 = 3;
 
 fn draw(menu: &mut MenuState, searching: bool) -> Result<()> {
     let (cols, rows) = terminal_size();
@@ -428,8 +424,13 @@ fn render(
     // takes is what the list has left to work with.
     let footer_lines = wrap(&footer_text(menu), cols, footer_budget(rows, help_rows));
     let footer_rows = footer_lines.len() as u16;
+    // Reserved for the whole menu, so the list keeps its height as the cursor
+    // moves between entries that have a description and entries that do not.
+    // A menu where nothing has one spends no rows on it at all.
+    let description_rows = description_budget(menu, rows, help_rows, footer_rows);
+    let description_lines = description_lines(menu, cols, description_rows);
     let list_height = rows
-        .saturating_sub(CHROME_ROWS + help_rows + footer_rows)
+        .saturating_sub(CHROME_ROWS + help_rows + footer_rows + description_rows)
         .max(1) as usize;
     menu.scroll_into_view(list_height);
 
@@ -490,59 +491,15 @@ fn render(
     let offset = menu.offset();
     let cursor = menu.cursor();
     let items = menu.items();
-    // Rows of the list area under the selected one: what the help may cover.
-    let rows_below = list_height.saturating_sub(cursor.saturating_sub(offset) + 1);
-    let inline_help = menu
-        .selected()
-        .and_then(|item| {
-            let help = item.help.as_deref()?;
-            let label = truncate(&entry_line(item, true), cols);
-            Some(inline_help_runs(
-                help,
-                display_width(&label),
-                cols,
-                rows_below,
-            ))
-        })
-        .unwrap_or_default();
-    // Which run of help, if any, is drawn over the entry at `index`. Run 0
-    // belongs to the selected row itself and is drawn with it.
-    let covered = |index: usize| {
-        if index > cursor {
-            inline_help.get(index - cursor)
-        } else {
-            None
-        }
-    };
 
     for (index, item) in items.iter().enumerate().skip(offset).take(list_height) {
-        // A covered entry is not drawn at all. Making room for the help instead
-        // would move every row under the cursor on each keystroke, which is the
-        // whole reason it is an overlay (CYBERNEURA-DEV-582).
-        if let Some(run) = covered(index) {
-            paint_with(color, &mut out, Style::fg(theme::HELP), &help_row(run))?;
-            writeln!(out, "\r")?;
-            continue;
-        }
-
         let selected = index == cursor;
         let line = entry_line(item, selected);
 
         if selected {
             // Padded first, so the highlight is a bar across the whole width
             // rather than a patch the length of the label.
-            let label = truncate(&line, cols);
-            let width = cols.saturating_sub(1) as usize;
-            // With help to show, the label is only padded out to where the help
-            // starts and the help pads out the rest: together they are the same
-            // full-width bar.
-            let (line, help) = match inline_help.first().filter(|run| !run.is_empty()) {
-                Some(run) => {
-                    let start = (display_width(&label) + HELP_GAP).min(width);
-                    (pad_to(&label, start), Some(pad_to(run, width - start)))
-                }
-                None => (pad(&label, cols), None),
-            };
+            let line = pad(&truncate(&line, cols), cols);
             let (marker, label) = split_marker(&line);
             // The runs share a background, so the bar reads as one block
             // with the marker picked out in front of it.
@@ -564,18 +521,6 @@ fn render(
                     .highlight(),
                 label,
             )?;
-            if let Some(help) = help {
-                // Not bold, so the help is told apart from the label it follows
-                // by more than its colour.
-                paint_with(
-                    color,
-                    &mut out,
-                    Style::fg(theme::SELECTED_HELP)
-                        .on(theme::SELECTED_BG)
-                        .highlight(),
-                    &help,
-                )?;
-            }
         } else {
             let style = if item.has_detail() {
                 Style::fg(theme::CONTAINER)
@@ -587,16 +532,18 @@ fn render(
         writeln!(out, "\r")?;
     }
 
-    // The list can run out before the help does — a short menu, or the cursor
-    // on the last entry. Those rows are blank, so the help carries on into
-    // them; `rows_below` has already kept it inside the list area.
-    let drawn = items.len().saturating_sub(offset).min(list_height);
-    for (row, run) in inline_help.iter().enumerate().skip(1) {
-        if cursor + row < offset + drawn {
-            continue;
-        }
-        paint_with(color, &mut out, Style::fg(theme::HELP), &help_row(run))?;
-        writeln!(out, "\r")?;
+    // The selected entry's description, in the rows reserved for it directly
+    // above the status line. Written at absolute rows for the same reason the
+    // status line is: the list above may not have filled its own area.
+    let description_first_row = rows.saturating_sub(footer_rows + description_rows);
+    for (index, line) in description_lines.iter().enumerate() {
+        execute!(out, cursor::MoveTo(0, description_first_row + index as u16))?;
+        paint_with(
+            color,
+            &mut out,
+            Style::fg(theme::HELP),
+            &truncate(line, cols),
+        )?;
     }
 
     // The status line sits at the bottom of the screen and grows upwards, so a
@@ -648,38 +595,47 @@ fn entry_line(item: &MenuItem, selected: bool) -> String {
     )
 }
 
-/// One row of help drawn under the selected entry.
-fn help_row(run: &str) -> String {
-    format!("{}{run}", " ".repeat(HELP_INDENT))
+/// How many rows to reserve above the status line for entry descriptions.
+///
+/// Zero unless something in the menu has one, so a configuration with no `help:`
+/// anywhere loses nothing to it. Otherwise [`DESCRIPTION_ROWS`], less whatever a
+/// short terminal cannot spare — the chrome, the detail view's own help, the
+/// status line and one row of list all come first, because the status line is
+/// written at an absolute row and a list pushed into it is painted over rather
+/// than shortened.
+fn description_budget(menu: &MenuState, rows: u16, help_rows: u16, footer_rows: u16) -> u16 {
+    // The whole frame, not what the filter left: a search that happens to
+    // exclude every entry with a `help` would otherwise take the block away
+    // mid-keystroke and move the bottom of the list, which is the thing this
+    // reservation exists to prevent.
+    if !menu.frame().items.iter().any(|item| item.help.is_some()) {
+        return 0;
+    }
+    let spare = rows.saturating_sub(CHROME_ROWS + help_rows + footer_rows + 1);
+    DESCRIPTION_ROWS.min(spare)
 }
 
-/// The help of the selected entry, laid out over the row it is on and the rows
-/// under it.
+/// The selected entry's description, as the rows reserved for it.
 ///
-/// The first run is what fits on the selected row after its label; the rest are
-/// drawn over the entries below rather than between them, so the list does not
-/// shift as the cursor moves (CYBERNEURA-DEV-582). `rows_below` is how many rows
-/// of the list are under the cursor; anything past that — or past
-/// [`MAX_INLINE_HELP_ROWS`] — is left to the detail view.
-fn inline_help_runs(help: &str, label_width: usize, cols: u16, rows_below: usize) -> Vec<String> {
-    let text: String = sanitize(&one_paragraph(help)).collect();
-    let width = cols.saturating_sub(1) as usize;
-
-    // What is left of the selected row once the label has had its say.
-    let (head, mut rest) = split_at_width(&text, width.saturating_sub(label_width + HELP_GAP));
-    let mut runs = vec![head.to_string()];
-
-    let below = rows_below.min(MAX_INLINE_HELP_ROWS - 1);
-    while !rest.is_empty() && runs.len() <= below {
-        let (head, tail) = split_at_width(rest, width.saturating_sub(HELP_INDENT));
-        if head.is_empty() {
-            // A terminal narrower than the indent. Stop rather than loop.
-            break;
-        }
-        runs.push(head.to_string());
-        rest = tail;
+/// Always exactly `rows` long, blank rows included: the block is a fixed part
+/// of the frame, and returning fewer rows for a short description would leave
+/// whatever the last frame drew there on screen.
+fn description_lines(menu: &MenuState, cols: u16, rows: u16) -> Vec<String> {
+    if rows == 0 {
+        return Vec::new();
     }
-    runs
+    let text = menu
+        .selected()
+        .and_then(|item| item.help.as_deref())
+        .map(one_paragraph)
+        .unwrap_or_default();
+    let mut lines = if text.is_empty() {
+        Vec::new()
+    } else {
+        wrap(&text, cols, rows)
+    };
+    lines.resize(rows as usize, String::new());
+    lines
 }
 
 /// The help shown under the title of a detail view, as the rows it takes.
@@ -1464,11 +1420,12 @@ mod tests {
 
     #[test]
     fn the_selected_row_is_marked_out_whether_or_not_color_is_on() {
-        // The marker and the label, plus the help when the entry has one: every
-        // run of the bar has to carry the highlight, or the bar has a hole in
-        // it. Without colour that means reverse video, which is the whole point
-        // of `Style::highlight`: drop it and this fails.
-        for (help, runs) in [(None, 2), (Some("some help"), 3)] {
+        // The marker and the label: both runs of the bar have to carry the
+        // highlight, or the bar has a hole in it. Without colour that means
+        // reverse video, which is the whole point of `Style::highlight`: drop
+        // it and this fails. The count does not change with the entry's
+        // description, which no longer shares this row (CYBERNEURA-DEV-696).
+        for help in [None, Some("some help")] {
             for color in [true, false] {
                 let frame = rendered_with(color, help);
                 let bar = selected_row(&frame);
@@ -1479,7 +1436,7 @@ mod tests {
                 };
                 assert_eq!(
                     bar.matches(sequence).count(),
-                    runs,
+                    2,
                     "{sequence:?} does not cover {bar:?}"
                 );
             }
@@ -1529,64 +1486,174 @@ mod tests {
     }
 
     #[test]
-    fn the_help_of_the_selected_entry_is_shown_next_to_it() {
+    fn the_description_of_the_selected_entry_is_off_the_list() {
         let text = with_help_on(4, 1, Some("what it does"), 12);
         let row = text
             .lines()
             .find(|line| line.contains("*> item 1"))
             .expect("the selected entry is drawn");
-        // Visible, and on the row it belongs to rather than somewhere the eye
-        // has to go looking for it.
-        assert!(row.contains("what it does"), "got {row:?}");
+
+        // Still on screen, but not on the entry's own row and not over the
+        // entries under it: it belongs to the block above the status line now
+        // (CYBERNEURA-DEV-696).
+        assert!(text.contains("what it does"), "got {text:?}");
+        assert!(!row.contains("what it does"), "got {row:?}");
     }
 
     #[test]
-    fn help_covers_the_entries_under_it_instead_of_pushing_them_down() {
-        // The bug this guards (CYBERNEURA-DEV-582): help that took rows of its
-        // own moved every entry under the cursor, so the list jumped as the
-        // cursor walked over entries that have help and entries that do not.
+    fn a_description_hides_no_entry_however_long_it_is() {
+        // The bug this guards (CYBERNEURA-DEV-696): the description used to be
+        // drawn over the rows under the cursor, so a long one swallowed the
+        // next few entries and there was no way to read them.
         let long = "本番環境にプログラムを反映します。".repeat(4);
-        let plain = with_help_on(8, 1, None, 20);
         let helped = with_help_on(8, 1, Some(&long), 20);
 
+        for i in 0..8 {
+            assert!(helped.contains(&format!("item {i}")), "got {helped:?}");
+        }
+    }
+
+    #[test]
+    fn the_list_does_not_move_as_the_cursor_walks_over_descriptions() {
+        // The block is reserved for the whole menu rather than sized to the
+        // selected entry, so an entry with a description and one without leave
+        // the list in the same place. Sizing it per entry would move every row
+        // below on each keystroke, which is what the overlay this replaced was
+        // avoiding in the first place (CYBERNEURA-DEV-582).
         let row_of = |text: &str, label: &str| {
             text.lines()
                 .position(|line| line.contains(label))
                 .unwrap_or_else(|| panic!("{label} is drawn: {text:?}"))
         };
-        // An entry far enough down not to be covered has not moved.
-        assert_eq!(row_of(&plain, "item 7"), row_of(&helped, "item 7"));
-        assert_eq!(plain.lines().count(), helped.lines().count());
-        // The entries the help is drawn over are gone, not shifted.
-        assert!(!helped.contains("item 2"), "got {helped:?}");
+        let on_described = with_help_on(8, 1, Some("a description"), 20);
+        let on_plain = {
+            let items = (0..8)
+                .map(|i| MenuItem {
+                    help: (i == 1).then(|| "a description".to_string()),
+                    ..MenuItem::command(format!("item {i}"), format!("echo {i}"))
+                })
+                .collect();
+            let mut menu = MenuState::new(Frame::new("title", items));
+            menu.move_down();
+            menu.move_down();
+            without_escapes(
+                &String::from_utf8(render(&mut menu, 40, 20, false, false).unwrap()).unwrap(),
+            )
+        };
+
+        assert_eq!(row_of(&on_described, "item 7"), row_of(&on_plain, "item 7"));
     }
 
     #[test]
-    fn long_help_stops_at_the_row_budget_and_stays_inside_the_screen() {
-        let helped = with_help_on(8, 1, Some(&"あ".repeat(400)), 20);
-        let covered = helped
-            .lines()
-            .filter(|line| line.trim_start().starts_with('あ'))
-            .count();
-        // The selected row carries the first run; the rest go under it.
-        assert_eq!(covered, MAX_INLINE_HELP_ROWS - 1, "got {helped:?}");
+    fn a_search_that_hides_every_description_keeps_the_block() {
+        // The reservation is a property of the menu, not of what the filter
+        // left: taking it away as the query narrows would move the bottom of
+        // the list while the user is still typing.
+        let items = vec![
+            MenuItem {
+                help: Some("a description".into()),
+                ..MenuItem::command("described", "echo hi")
+            },
+            MenuItem::command("plain", "echo hi"),
+        ];
+        let mut menu = MenuState::new(Frame::new("title", items));
+        let unfiltered = description_budget(&menu, 20, 0, 1);
+
+        menu.set_query("plain".into());
+
+        assert_eq!(menu.items().len(), 1, "the filter should leave one entry");
+        assert_eq!(description_budget(&menu, 20, 0, 1), unfiltered);
+    }
+
+    #[test]
+    fn a_menu_with_no_descriptions_spends_no_rows_on_them() {
+        let row_of = |text: &str, label: &str| {
+            text.lines()
+                .position(|line| line.contains(label))
+                .unwrap_or_else(|| panic!("{label} is drawn: {text:?}"))
+        };
+        // Twenty entries and twelve rows, so the list is what the reserved
+        // block would come out of.
+        let plain = with_help_on(20, 0, None, 12);
+        let described = with_help_on(20, 0, Some("a description"), 12);
+
+        let visible = |text: &str| {
+            (0..20)
+                .filter(|i| text.contains(&format!("item {i}")))
+                .count()
+        };
         assert!(
-            helped.lines().all(|line| display_width(line) <= 39),
-            "no row may run past the edge: {helped:?}"
+            visible(&plain) > visible(&described),
+            "a menu with no help should show more entries: {plain:?} vs {described:?}"
+        );
+        assert_eq!(row_of(&plain, "item 0"), row_of(&described, "item 0"));
+    }
+
+    #[test]
+    fn a_long_description_stops_at_the_row_budget() {
+        // Asserted on the block rather than on the frame: its rows are painted
+        // at absolute positions with no line ending between them, so the frame
+        // text runs them together and counting lines would say nothing.
+        let items = vec![MenuItem {
+            help: Some("あ".repeat(400)),
+            ..MenuItem::command("item", "echo hi")
+        }];
+        let menu = MenuState::new(Frame::new("title", items));
+
+        let lines = description_lines(&menu, 40, description_budget(&menu, 20, 0, 1));
+
+        assert_eq!(lines.len(), DESCRIPTION_ROWS as usize);
+        assert!(
+            lines.iter().all(|line| display_width(line) <= 39),
+            "no row may run past the edge: {lines:?}"
+        );
+        // The rest is the detail view's to show, not this block's.
+        assert!(lines.concat().chars().count() < 400);
+    }
+
+    #[test]
+    fn a_short_description_still_fills_its_block() {
+        // Blank rows included, so a short description does not leave whatever
+        // the last frame drew in those rows on screen.
+        let items = vec![MenuItem {
+            help: Some("short".into()),
+            ..MenuItem::command("item", "echo hi")
+        }];
+        let menu = MenuState::new(Frame::new("title", items));
+
+        let lines = description_lines(&menu, 40, description_budget(&menu, 20, 0, 1));
+
+        assert_eq!(lines.len(), DESCRIPTION_ROWS as usize);
+        assert_eq!(lines[0], "short");
+        assert!(
+            lines[1..].iter().all(|line| line.is_empty()),
+            "got {lines:?}"
         );
     }
 
     #[test]
-    fn help_under_the_last_entry_uses_the_blank_rows_of_the_list() {
-        // The cursor on the last entry: there is nothing to cover, but the rows
-        // are there and dropping the help into the void would hide most of it.
-        let helped = with_help_on(2, 1, Some(&"あ".repeat(200)), 20);
-        assert!(
-            helped.lines().filter(|line| line.contains('あ')).count() > 1,
-            "the help should carry on below the last entry: {helped:?}"
-        );
-        // Still inside the screen: 20 rows, and the status line owns the last.
-        assert!(helped.lines().count() <= 20, "got {helped:?}");
+    fn a_description_never_paints_past_the_bottom_of_a_short_terminal() {
+        // The block is written at absolute rows above the status line, so on a
+        // terminal with no room to spare it has to shrink rather than overlap
+        // what is already there. The expected height is spelled out per size:
+        // asserting only that it fits would pass on a budget that had collapsed
+        // to nothing.
+        for (rows, expected) in [(4u16, 0u16), (5, 1), (6, 2), (10, 3), (24, 3)] {
+            let items = vec![MenuItem {
+                help: Some("あ".repeat(200)),
+                ..MenuItem::command("item", "echo hi")
+            }];
+            let menu = MenuState::new(Frame::new("title", items));
+            let budget = description_budget(&menu, rows, 0, 1);
+
+            assert_eq!(budget, expected, "rows={rows}");
+            // And whatever it is, the title, its blank row, one row of list and
+            // the status line still have somewhere to go.
+            assert!(
+                budget + CHROME_ROWS + 2 <= rows || budget == 0,
+                "rows={rows} left no room for the list (budget={budget})"
+            );
+        }
     }
 
     #[test]
