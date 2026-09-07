@@ -264,5 +264,8 @@ eval "$(jj-menu --shell-init zsh)"     # ~/.zshrc
 jj-menu --shell-init fish | source     # ~/.config/fish/config.fish, fish 3.4+
 ```
 
+Invoking the binary by a path emits a function that calls that path, so a
+build outside `PATH` still gives a working `jj`.
+
 The three snippets differ, so pass the shell that is actually being configured —
 the zsh one pushes to history with `print -s`, which bash does not have.

@@ -47,6 +47,10 @@ eval "$(jj-menu --shell-init bash)"
 jj-menu --shell-init fish | source
 ```
 
+Calling the binary by a path -- `eval "$(~/src/jj-menu/target/release/jj-menu
+--shell-init zsh)"` -- works too: the generated function then calls that same
+path, so `jj` works when the binary is not on `PATH`.
+
 The fish function needs **fish 3.4 or newer**. It relies on quoted command
 substitution (`"$(...)"`), which is what keeps a multi-line entry in one piece;
 older versions split it on newlines.
