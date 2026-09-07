@@ -12,20 +12,20 @@ fn bin() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join("jj-menu")
+    path.join("j-menu")
 }
 
 fn tempdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("jj-menu-it-{name}"));
+    let dir = std::env::temp_dir().join(format!("j-menu-it-{name}"));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create the temporary directory");
     dir
 }
 
-/// Run `jj-menu --show-config` with the search starting at `dir`.
+/// Run `j-menu --show-config` with the search starting at `dir`.
 ///
 /// `HOME` and `XDG_CONFIG_HOME` are pointed at an empty directory so the
-/// developer's own `~/.config/jj-menu/` cannot change the result.
+/// developer's own `~/.config/j-menu/` cannot change the result.
 fn show_config(dir: &Path) -> String {
     let empty_home = dir.join(".empty-home");
     fs::create_dir_all(&empty_home).expect("create the fake home");
@@ -41,11 +41,11 @@ fn show_config_with_home(dir: &Path, home: &Path) -> String {
         .env("HOME", home)
         .env("XDG_CONFIG_HOME", home)
         .output()
-        .expect("run jj-menu");
+        .expect("run j-menu");
 
     assert!(
         output.status.success(),
-        "jj-menu failed: {}",
+        "j-menu failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8_lossy(&output.stdout).into_owned()
@@ -70,15 +70,15 @@ fn merges_a_directory_with_its_ancestors() {
     let root = tempdir("merge-ancestors");
     let nested = root.join("a/b");
     fs::create_dir_all(&nested).unwrap();
-    fs::write(root.join(".jj-menu.yaml"), one_entry("from root")).unwrap();
-    fs::write(nested.join(".jj-menu.yaml"), one_entry("from nested")).unwrap();
+    fs::write(root.join(".j-menu.yaml"), one_entry("from root")).unwrap();
+    fs::write(nested.join(".j-menu.yaml"), one_entry("from nested")).unwrap();
 
     let report = show_config(&nested);
     assert_eq!(entry_count(&report), 2, "{report}");
 
     // Nearest first: the nested file is loaded before the root one.
-    let nested_at = report.find("a/b/.jj-menu.yaml").expect("nested listed");
-    let root_line = format!("{}/.jj-menu.yaml", root.display());
+    let nested_at = report.find("a/b/.j-menu.yaml").expect("nested listed");
+    let root_line = format!("{}/.j-menu.yaml", root.display());
     let root_at = report.find(&root_line).expect("root listed");
     assert!(nested_at < root_at, "{report}");
 }
@@ -89,15 +89,15 @@ fn skips_a_fallback_file_when_a_nearer_one_exists() {
     let nested = root.join("a");
     fs::create_dir_all(&nested).unwrap();
     fs::write(
-        root.join(".jj-menu.yaml"),
+        root.join(".j-menu.yaml"),
         format!("merge: false\n{}", one_entry("from root")),
     )
     .unwrap();
-    fs::write(nested.join(".jj-menu.yaml"), one_entry("from nested")).unwrap();
+    fs::write(nested.join(".j-menu.yaml"), one_entry("from nested")).unwrap();
 
     let report = show_config(&nested);
     assert_eq!(entry_count(&report), 1, "{report}");
-    let root_line = format!("{}/.jj-menu.yaml", root.display());
+    let root_line = format!("{}/.j-menu.yaml", root.display());
     assert!(
         !report.contains(&root_line),
         "the fallback must not be listed as loaded: {report}"
@@ -110,7 +110,7 @@ fn uses_a_fallback_file_when_nothing_nearer_exists() {
     let nested = root.join("a");
     fs::create_dir_all(&nested).unwrap();
     fs::write(
-        root.join(".jj-menu.yaml"),
+        root.join(".j-menu.yaml"),
         format!("merge: false\n{}", one_entry("from root")),
     )
     .unwrap();
@@ -122,13 +122,13 @@ fn uses_a_fallback_file_when_nothing_nearer_exists() {
 #[test]
 fn loads_the_shared_file_before_the_local_override() {
     let dir = tempdir("local-override");
-    fs::write(dir.join(".jj-menu.yaml"), one_entry("shared")).unwrap();
-    fs::write(dir.join(".jj-menu.local.yaml"), one_entry("personal")).unwrap();
+    fs::write(dir.join(".j-menu.yaml"), one_entry("shared")).unwrap();
+    fs::write(dir.join(".j-menu.local.yaml"), one_entry("personal")).unwrap();
 
     let report = show_config(&dir);
     assert_eq!(entry_count(&report), 2, "{report}");
-    let shared = report.find(".jj-menu.yaml").expect("shared listed");
-    let local = report.find(".jj-menu.local.yaml").expect("local listed");
+    let shared = report.find(".j-menu.yaml").expect("shared listed");
+    let local = report.find(".j-menu.local.yaml").expect("local listed");
     assert!(shared < local, "{report}");
 }
 
@@ -143,13 +143,13 @@ fn reports_no_configuration_when_none_exists() {
 #[test]
 fn reads_yaml_toml_and_json_alike() {
     let cases = [
-        (".jj-menu.yaml", "menu:\n  - title: t\n    shell: 'true'\n"),
+        (".j-menu.yaml", "menu:\n  - title: t\n    shell: 'true'\n"),
         (
-            ".jj-menu.toml",
+            ".j-menu.toml",
             "[[menu]]\ntitle = \"t\"\nshell = \"true\"\n",
         ),
         (
-            ".jj-menu.json",
+            ".j-menu.json",
             r#"{"menu": [{"title": "t", "shell": "true"}]}"#,
         ),
     ];
@@ -165,7 +165,7 @@ fn reads_yaml_toml_and_json_alike() {
 #[test]
 fn fails_with_a_message_naming_the_broken_file() {
     let dir = tempdir("broken");
-    let path = dir.join(".jj-menu.yaml");
+    let path = dir.join(".j-menu.yaml");
     fs::write(&path, "menu:\n  - titel: typo\n").unwrap();
     let empty_home = dir.join(".empty-home");
     fs::create_dir_all(&empty_home).unwrap();
@@ -177,11 +177,11 @@ fn fails_with_a_message_naming_the_broken_file() {
         .env("HOME", &empty_home)
         .env("XDG_CONFIG_HOME", &empty_home)
         .output()
-        .expect("run jj-menu");
+        .expect("run j-menu");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(".jj-menu.yaml"), "{stderr}");
+    assert!(stderr.contains(".j-menu.yaml"), "{stderr}");
     assert!(stderr.contains("titel"), "{stderr}");
 }
 
@@ -218,13 +218,13 @@ fn reports_the_directory_each_file_runs_in() {
     let root = tempdir("run-dir-reported");
     let nested = root.join("a/b");
     fs::create_dir_all(&nested).unwrap();
-    fs::write(root.join(".jj-menu.yaml"), one_entry("from root")).unwrap();
-    fs::write(nested.join(".jj-menu.yaml"), one_entry("from nested")).unwrap();
+    fs::write(root.join(".j-menu.yaml"), one_entry("from root")).unwrap();
+    fs::write(nested.join(".j-menu.yaml"), one_entry("from nested")).unwrap();
 
     let report = show_config(&nested);
-    assert_eq!(runs_in(&report, "a/b/.jj-menu.yaml"), resolved(&nested));
+    assert_eq!(runs_in(&report, "a/b/.j-menu.yaml"), resolved(&nested));
     assert_eq!(
-        runs_in(&report, &format!("{}/.jj-menu.yaml", resolved(&root))),
+        runs_in(&report, &format!("{}/.j-menu.yaml", resolved(&root))),
         resolved(&root),
         "an ancestor's entries run at the ancestor, not here: {report}"
     );
@@ -236,7 +236,7 @@ fn a_file_can_send_its_entries_back_to_the_working_directory() {
     let nested = root.join("a");
     fs::create_dir_all(&nested).unwrap();
     fs::write(
-        root.join(".jj-menu.yaml"),
+        root.join(".j-menu.yaml"),
         format!("run_in_current_directory: true\n{}", one_entry("from root")),
     )
     .unwrap();
@@ -244,7 +244,7 @@ fn a_file_can_send_its_entries_back_to_the_working_directory() {
     let report = show_config(&nested);
     let line = report
         .lines()
-        .find(|line| line.contains(".jj-menu.yaml"))
+        .find(|line| line.contains(".j-menu.yaml"))
         .unwrap_or_else(|| panic!("the file is not listed: {report}"));
     assert!(
         line.contains("(entries run in the working directory by default)"),
@@ -255,10 +255,10 @@ fn a_file_can_send_its_entries_back_to_the_working_directory() {
 #[test]
 fn the_per_user_file_runs_in_the_working_directory_by_default() {
     // It belongs to no project, so running its entries in
-    // ~/.config/jj-menu would be useless for every one of them.
+    // ~/.config/j-menu would be useless for every one of them.
     let root = tempdir("user-config-default");
     let home = root.join("home");
-    let user_dir = home.join("jj-menu");
+    let user_dir = home.join("j-menu");
     fs::create_dir_all(&user_dir).unwrap();
     fs::write(
         user_dir.join("config.yaml"),
@@ -269,7 +269,7 @@ fn the_per_user_file_runs_in_the_working_directory_by_default() {
     let report = show_config_with_home(&root, &home);
     let line = report
         .lines()
-        .find(|line| line.contains("jj-menu/config.yaml"))
+        .find(|line| line.contains("j-menu/config.yaml"))
         .unwrap_or_else(|| panic!("the per-user file is not listed: {report}"));
     assert!(
         line.contains("(entries run in the working directory by default)"),
@@ -281,7 +281,7 @@ fn the_per_user_file_runs_in_the_working_directory_by_default() {
 fn the_per_user_file_can_still_ask_for_its_own_directory() {
     let root = tempdir("user-config-opts-in");
     let home = root.join("home");
-    let user_dir = home.join("jj-menu");
+    let user_dir = home.join("j-menu");
     fs::create_dir_all(&user_dir).unwrap();
     fs::write(
         user_dir.join("config.yaml"),
@@ -294,7 +294,7 @@ fn the_per_user_file_can_still_ask_for_its_own_directory() {
 
     let report = show_config_with_home(&root, &home);
     assert_eq!(
-        runs_in(&report, "jj-menu/config.yaml"),
+        runs_in(&report, "j-menu/config.yaml"),
         resolved(&user_dir),
         "{report}"
     );

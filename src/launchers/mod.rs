@@ -1,7 +1,7 @@
 //! Built-in launchers.
 //!
 //! When a project already describes its own tasks (npm scripts, make targets,
-//! Cargo, Gradle) there is no reason to repeat them in a jj-menu file, so they
+//! Cargo, Gradle) there is no reason to repeat them in a j-menu file, so they
 //! are picked up automatically. Everything here is best effort: an entry is
 //! only produced when it can be run as-is, because a menu entry that always
 //! fails is worse than a missing one.

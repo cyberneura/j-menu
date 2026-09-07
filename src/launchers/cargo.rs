@@ -264,7 +264,7 @@ mod tests {
     use std::fs;
 
     fn write_manifest(name: &str, body: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("jj-menu-cargo-{name}"));
+        let dir = std::env::temp_dir().join(format!("j-menu-cargo-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("Cargo.toml");

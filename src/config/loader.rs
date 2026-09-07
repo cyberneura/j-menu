@@ -31,7 +31,7 @@ fn validate(items: &[MenuItem], path: &Path) -> Result<()> {
 pub struct Source {
     pub path: PathBuf,
     /// Where the entries of this file run unless one of them says otherwise;
-    /// `None` is the directory `jj-menu` was started from.
+    /// `None` is the directory `j-menu` was started from.
     pub cwd: Option<PathBuf>,
 }
 
@@ -222,7 +222,7 @@ mod tests {
     }
 
     fn tempdir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("jj-menu-loader-{name}"));
+        let dir = std::env::temp_dir().join(format!("j-menu-loader-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         // Canonical, because that is what `load` is given in `main` and what
@@ -468,8 +468,8 @@ mod tests {
         let root = tempdir("declaring-dir");
         let nested = root.join("a/b");
         std::fs::create_dir_all(&nested).unwrap();
-        write(&root, ".jj-menu.yaml", &one_entry("from root"));
-        write(&nested, ".jj-menu.yaml", &one_entry("from nested"));
+        write(&root, ".j-menu.yaml", &one_entry("from root"));
+        write(&nested, ".j-menu.yaml", &one_entry("from nested"));
 
         let config = load(&nested).unwrap();
         assert_eq!(entry(&config, "from nested").cwd.as_deref(), Some(&*nested));
@@ -483,7 +483,7 @@ mod tests {
         std::fs::create_dir_all(&nested).unwrap();
         write(
             &dir,
-            ".jj-menu.yaml",
+            ".j-menu.yaml",
             &format!("run_in_current_directory: true\n{}", one_entry("here")),
         );
 
@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(
             entry(&config, "here").cwd,
             None,
-            "None is what stands for the directory jj-menu was started from"
+            "None is what stands for the directory j-menu was started from"
         );
         assert_eq!(config.sources[0].cwd, None, "and --show-config says so");
     }
@@ -501,7 +501,7 @@ mod tests {
         let dir = tempdir("entry-overrides");
         write(
             &dir,
-            ".jj-menu.yaml",
+            ".j-menu.yaml",
             "run_in_current_directory: true\n\
              menu:\n\
              \x20 - title: follows the file\n\
@@ -526,7 +526,7 @@ mod tests {
         let dir = tempdir("submenu-inherits");
         write(
             &dir,
-            ".jj-menu.yaml",
+            ".j-menu.yaml",
             "menu:\n\
              \x20 - title: group\n\
              \x20   run_in_current_directory: true\n\

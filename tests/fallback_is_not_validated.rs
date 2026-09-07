@@ -11,11 +11,11 @@ fn bin() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.join("jj-menu")
+    path.join("j-menu")
 }
 
 fn tempdir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("jj-menu-fallback-{name}"));
+    let dir = std::env::temp_dir().join(format!("j-menu-fallback-{name}"));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create the temporary directory");
     dir
@@ -29,7 +29,7 @@ fn show_config(dir: &Path, home: &Path) -> std::process::Output {
         .env("HOME", home)
         .env("XDG_CONFIG_HOME", home)
         .output()
-        .expect("run jj-menu")
+        .expect("run j-menu")
 }
 
 #[test]
@@ -44,12 +44,12 @@ fn an_invalid_fallback_file_does_not_abort_startup() {
     // nested file applies, the ancestor is inactive and its contents are never
     // used, so the unknown key must not matter.
     fs::write(
-        root.join(".jj-menu.yaml"),
+        root.join(".j-menu.yaml"),
         "merge: false\nmenu:\n  - titel: typo\n",
     )
     .unwrap();
     fs::write(
-        nested.join(".jj-menu.yaml"),
+        nested.join(".j-menu.yaml"),
         "menu:\n  - title: t\n    shell: 'true'\n",
     )
     .unwrap();
@@ -77,7 +77,7 @@ fn an_invalid_file_that_actually_applies_still_reports_the_error() {
     // Same file, but now nothing nearer exists, so it does apply and the
     // unknown key has to be reported.
     fs::write(
-        root.join(".jj-menu.yaml"),
+        root.join(".j-menu.yaml"),
         "merge: false\nmenu:\n  - titel: typo\n",
     )
     .unwrap();

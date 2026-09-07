@@ -13,7 +13,7 @@
 //!   non-interactive shell does not pass a signal on to what it is waiting for.
 //!   Signalling the shell alone would leave that `sleep` running.
 //! * The jobs are out of the terminal's foreground group, so a Ctrl-C is
-//!   delivered to `jj-menu` and to nobody else. It is then passed on exactly
+//!   delivered to `j-menu` and to nobody else. It is then passed on exactly
 //!   once — a job cannot see the same interrupt twice and mistake it for the
 //!   user asking twice.
 //!
@@ -25,7 +25,7 @@
 //!
 //! A second stop signal escalates to `SIGKILL`, so a job that ignores the first
 //! one cannot hold the menu open, and the group is only left once every child
-//! has been reaped — `jj` cannot return to the prompt with jobs still writing
+//! has been reaped — `j` cannot return to the prompt with jobs still writing
 //! to the terminal behind it.
 //!
 //! What is *not* followed is a process a job put in the background itself
@@ -388,7 +388,7 @@ mod tests {
     }
 
     fn dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("jj-menu-parallel-{name}"));
+        let dir = std::env::temp_dir().join(format!("j-menu-parallel-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

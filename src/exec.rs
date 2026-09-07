@@ -52,7 +52,7 @@ pub fn exit_code(status: ExitStatus) -> u8 {
         return code.clamp(0, 255) as u8;
     }
     // No exit code means a signal ended it. `128 + n` is what `$?` holds in
-    // bash/zsh, so `jj` stays interchangeable with typing the command.
+    // bash/zsh, so `j` stays interchangeable with typing the command.
     match status.signal() {
         Some(signal) => 128u8.saturating_add(signal.clamp(0, 127) as u8),
         // Neither an exit code nor a signal should be possible for a process

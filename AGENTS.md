@@ -1,11 +1,11 @@
 # AGENTS.md
 
-Notes for AI agents working on `jj-menu`. See `README.md` for what the tool is
+Notes for AI agents working on `j-menu`. See `README.md` for what the tool is
 and how a user configures it.
 
 ## What this is
 
-A TUI menu launcher in Rust (edition 2024, MSRV 1.85). The user types `jj`,
+A TUI menu launcher in Rust (edition 2024, MSRV 1.85). The user types `j`,
 picks an entry, and the selected shell script runs with the TTY fully attached.
 Unix-like systems only.
 
@@ -26,9 +26,9 @@ handler, where nothing that locks may be called.
 | `src/exec.rs` | Running the selected script |
 | `src/parallel.rs` | Running a `parallel:` group: one shell per member, and passing Ctrl-C on to all of them |
 | `src/signal.rs` | Restoring the terminal when a signal kills the process |
-| `src/shell_init.rs` | The `jj` wrapper function for bash / zsh / fish |
+| `src/shell_init.rs` | The `j` wrapper function for bash / zsh / fish |
 | `tests/` | Integration tests for configuration merging |
-| `skills/` | The agent skill published from this repository (`npx skills add cyberneura/jj-menu`) |
+| `skills/` | The agent skill published from this repository (`npx skills add cyberneura/j-menu`) |
 
 ## Commands
 
@@ -56,7 +56,7 @@ of any automated check.
 - **Where an entry runs is resolved while loading, not while running.**
   `config::loader::assign_cwd` walks the parsed entries and writes
   `MenuItem::cwd`: the directory of the file that declared them, or `None` for
-  "wherever `jj-menu` was started". Nothing downstream re-derives it, so an
+  "wherever `j-menu` was started". Nothing downstream re-derives it, so an
   entry that arrives from somewhere other than a file (the launchers,
   `MenuItem::command`) is `None` and keeps running in `start_dir`.
 - **`run_in_current_directory` is `Option<bool>` on both the file and the
@@ -75,7 +75,7 @@ of any automated check.
 - **`start_dir` is not where the calling shell is standing.** `--cwd` moves the
   first and not the second, so `main` keeps `invoked_from` separately, and that
   is what decides whether a printed command needs a `cd` at all. Comparing
-  against `start_dir` makes `jj --cwd /project` from /tmp print a bare command
+  against `start_dir` makes `j --cwd /project` from /tmp print a bare command
   that the shell then runs in /tmp. `invoked_from` is an `Option`, because a
   process outlives its working directory being deleted and `--cwd` is what you
   reach for then; unknown means printing the `cd` rather than leaving it out.
@@ -164,7 +164,7 @@ Ask the user to run `cargo run` when the change is visual; they have a terminal.
 
 ## Working on the skill
 
-`skills/jj-menu/SKILL.md` restates the configuration format for an agent that has
+`skills/j-menu/SKILL.md` restates the configuration format for an agent that has
 not read this repository. Nothing compiles it, so it rots silently: check any
 claim against the implementation rather than against `README.md`, which itself
 carries hedges (`dirs::config_dir()` is not `~/.config` on macOS) that are easy to

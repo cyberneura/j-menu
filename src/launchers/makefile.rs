@@ -253,7 +253,7 @@ mod tests {
     #[test]
     fn ends_the_options_for_a_target_that_looks_like_a_flag() {
         // Quoting stops the shell, not make: bare `make '-n'` is a dry run.
-        let dir = std::env::temp_dir().join("jj-menu-make-dash");
+        let dir = std::env::temp_dir().join("j-menu-make-dash");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("Makefile");
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn quotes_the_target_name_in_the_generated_command() {
-        let dir = std::env::temp_dir().join("jj-menu-make-quote");
+        let dir = std::env::temp_dir().join("j-menu-make-quote");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("Makefile");

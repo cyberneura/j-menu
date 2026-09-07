@@ -27,7 +27,7 @@ use theme::{Style, paint_with};
 pub enum Outcome {
     /// Run this, with any arguments already filled in, in the given directory.
     ///
-    /// `None` for the directory means the one `jj-menu` was started from; the
+    /// `None` for the directory means the one `j-menu` was started from; the
     /// menu does not know it, so the caller substitutes it.
     Run(Launch, Option<PathBuf>),
     /// Leave without running anything.
@@ -68,7 +68,7 @@ impl Drop for TerminalGuard {
 /// Open the menu and return what the user picked.
 ///
 /// The UI is drawn on stderr so that stdout stays free for `--print`, which
-/// lets `jj-menu --print | ...` work while the menu is on screen.
+/// lets `j-menu --print | ...` work while the menu is on screen.
 pub fn run(items: Vec<MenuItem>, title: &str) -> Result<Outcome> {
     let _guard = TerminalGuard::enter()?;
     let mut menu = MenuState::new(Frame::new(title, items));

@@ -1,4 +1,4 @@
-//! `jj-menu` — a simple TUI menu launcher.
+//! `j-menu` — a simple TUI menu launcher.
 //!
 //! See the README for the configuration format.
 
@@ -29,7 +29,7 @@ const EXIT_CANCELLED: u8 = 130;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "jj-menu",
+    name = "j-menu",
     version,
     about = "A simple TUI menu launcher",
     long_about = None
@@ -38,7 +38,7 @@ struct Args {
     /// Print the selected command to stdout instead of running it.
     ///
     /// Used by the shell wrapper so that `cd` and `export` affect the calling
-    /// shell. See `jj-menu --shell-init <shell>`.
+    /// shell. See `j-menu --shell-init <shell>`.
     #[arg(long)]
     print: bool,
 
@@ -67,11 +67,11 @@ fn main() -> ExitCode {
                 let _ = ui::theme::paint(
                     &mut out,
                     ui::theme::Style::fg(ui::theme::ERROR).bold(),
-                    "jj-menu:",
+                    "j-menu:",
                 );
                 let _ = writeln!(out, " {err:#}");
             } else {
-                let _ = writeln!(out, "jj-menu: {err:#}");
+                let _ = writeln!(out, "j-menu: {err:#}");
             }
             ExitCode::FAILURE
         }
@@ -89,7 +89,7 @@ fn run() -> Result<ExitCode> {
     // Where the calling shell is standing, which `--cwd` does not move: that
     // flag only says where to start looking for configuration files. The two
     // are the same almost always, and telling them apart is what keeps
-    // `jj --cwd /project` from /tmp printing a command that then runs in /tmp.
+    // `j --cwd /project` from /tmp printing a command that then runs in /tmp.
     //
     // An option, because a process outlives its working directory being
     // deleted and that is exactly when `--cwd` earns its keep. Only the
@@ -123,7 +123,7 @@ fn run() -> Result<ExitCode> {
     }
 
     // The menu reads keys from stdin and draws on stderr, so both have to be
-    // a terminal. Checking stdin alone would let `jj 2>menu.log` block on a
+    // a terminal. Checking stdin alone would let `j 2>menu.log` block on a
     // menu nobody can see, with the escape sequences going into the log.
     if !std::io::stdin().is_terminal() {
         anyhow::bail!("no terminal available (stdin is not a TTY)");
@@ -132,7 +132,7 @@ fn run() -> Result<ExitCode> {
         anyhow::bail!("no terminal available (stderr is not a TTY; the menu is drawn there)");
     }
 
-    let title = format!("jj-menu — {}", start_dir.display());
+    let title = format!("j-menu — {}", start_dir.display());
     match ui::run(items, &title)? {
         ui::Outcome::Cancelled => Ok(ExitCode::from(EXIT_CANCELLED)),
         ui::Outcome::Run(Launch::Script(script), cwd) => {
@@ -153,7 +153,7 @@ fn run() -> Result<ExitCode> {
             // from an ancestor's file otherwise looks like it runs here.
             echo("$", &echo_script(cwd, &script, invoked_from.as_deref()))?;
             let status = exec::run(&script, cwd)?;
-            // Pass the command's exit code through, so `jj && next` and `$?`
+            // Pass the command's exit code through, so `j && next` and `$?`
             // behave the way they would for a typed command.
             Ok(ExitCode::from(exec::exit_code(status)))
         }
@@ -317,10 +317,10 @@ fn report_config(config: &config::Config, start_dir: &std::path::Path) {
 
 fn no_entries_help() -> String {
     "\
-jj-menu: nothing to show.
+j-menu: nothing to show.
 
 Create a configuration file in this directory or an ancestor, for example
-.jj-menu.yaml:
+.j-menu.yaml:
 
   menu:
     - title: List files
@@ -354,7 +354,7 @@ Cargo.toml and Gradle builds.
 To make `cd` inside a menu entry affect your shell, add the wrapper function:
 
   # ~/.zshrc
-  eval \"$(jj-menu --shell-init zsh)\"
+  eval \"$(j-menu --shell-init zsh)\"
 "
     .to_string()
 }
@@ -396,7 +396,7 @@ mod tests {
 
     /// A directory that exists, so that only the path-building is under test.
     fn existing_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("jj-menu-main-{name}"));
+        let dir = std::env::temp_dir().join(format!("j-menu-main-{name}"));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -439,7 +439,7 @@ mod tests {
         // The caller's shell cannot be told "cd, and stop if that failed" in a
         // way bash, zsh and fish all read the same, so a failed `cd` there
         // would run the script in whatever directory the shell was already in.
-        let gone = std::env::temp_dir().join("jj-menu-main-no-such-directory");
+        let gone = std::env::temp_dir().join("j-menu-main-no-such-directory");
         let _ = std::fs::remove_dir_all(&gone);
         let err = in_dir_script(&gone, "rm -rf build", Some(std::path::Path::new("/tmp")))
             .unwrap_err()
