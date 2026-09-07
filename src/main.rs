@@ -82,7 +82,7 @@ fn run() -> Result<ExitCode> {
     let args = Args::parse();
 
     if let Some(kind) = args.shell_init {
-        print!("{}", shell_init::snippet(kind));
+        print!("{}", shell_init::snippet(kind, &shell_init::program()));
         return Ok(ExitCode::SUCCESS);
     }
 
