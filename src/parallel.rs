@@ -652,7 +652,11 @@ mod tests {
         // would be run as a command. Both descriptors are swapped for files,
         // which is what the jobs inherit.
         // SAFETY: plain `dup`/`dup2` on descriptors this test owns; the
-        // originals are put back below, and `SERIAL` keeps other tests out.
+        // originals are put back below, and `SERIAL` keeps the other tests in
+        // this module out. It does not keep libtest's reporter out: that runs
+        // on the harness thread and writes its `test ... ok` lines to fd 1
+        // while it is swapped, so whatever lands in `stdout` is checked for
+        // the job's output rather than for being empty.
         let (saved_out, saved_err) = unsafe { (libc::dup(1), libc::dup(2)) };
         unsafe {
             libc::dup2(out.as_raw_fd(), 1);
@@ -667,11 +671,15 @@ mod tests {
         }
 
         assert_eq!(code.unwrap(), 0);
-        assert_eq!(
-            std::fs::read_to_string(cwd.join("stdout")).unwrap(),
-            "",
-            "output on stdout would be evaluated by the shell wrapper"
+        let on_stdout = std::fs::read_to_string(cwd.join("stdout")).unwrap();
+        assert!(
+            !on_stdout.contains("from-the-job"),
+            "output on stdout would be evaluated by the shell wrapper: {on_stdout:?}"
         );
+        // Matched exactly, so that a job's output being repeated or joined by
+        // a stray diagnostic is caught: the reporter writes to fd 1 only, so
+        // nothing but the job reaches this one. Should that ever change, this
+        // is the assertion that will start failing for the reason above.
         assert_eq!(
             std::fs::read_to_string(cwd.join("stderr")).unwrap(),
             "from-the-job\n",
