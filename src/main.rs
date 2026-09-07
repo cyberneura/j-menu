@@ -479,12 +479,26 @@ mod tests {
         }
     }
 
+    /// A directory whose name is not UTF-8, or `None` where the file system
+    /// refuses to create one (APFS does, with `EILSEQ`), in which case the
+    /// case under test cannot arise there and the test has nothing to check.
+    /// Any other failure is a real one and panics as before.
+    fn non_utf8_dir() -> Option<std::path::PathBuf> {
+        let dir = existing_dir("utf8").join(OsStr::from_bytes(b"broken-\xff-name"));
+        match std::fs::create_dir_all(&dir) {
+            Ok(()) => Some(dir),
+            Err(err) if err.raw_os_error() == Some(libc::EILSEQ) => None,
+            Err(err) => panic!("create {}: {err}", dir.display()),
+        }
+    }
+
     #[test]
     fn refuses_to_print_a_cd_into_a_name_that_is_not_utf8() {
         // Lossily converting it would send the shell to a *different* path,
         // and the `;` would then run the script where the shell already was.
-        let dir = existing_dir("utf8").join(OsStr::from_bytes(b"broken-\xff-name"));
-        std::fs::create_dir_all(&dir).unwrap();
+        let Some(dir) = non_utf8_dir() else {
+            return;
+        };
         let err = in_dir_script(&dir, "rm -rf build", Some(std::path::Path::new("/tmp")))
             .unwrap_err()
             .to_string();
@@ -495,8 +509,9 @@ mod tests {
     fn the_echo_shows_the_script_rather_than_refusing_it() {
         // `Command::current_dir` takes the bytes as they are, so the entry
         // still runs; only the line shown above it loses the directory.
-        let dir = existing_dir("utf8").join(OsStr::from_bytes(b"broken-\xff-name"));
-        std::fs::create_dir_all(&dir).unwrap();
+        let Some(dir) = non_utf8_dir() else {
+            return;
+        };
         assert_eq!(
             echo_script(&dir, "make build", Some(std::path::Path::new("/tmp"))),
             "make build"

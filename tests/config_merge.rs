@@ -19,7 +19,10 @@ fn tempdir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("j-menu-it-{name}"));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create the temporary directory");
-    dir
+    // Canonical, so that a per-user path derived from `HOME` compares equal
+    // to the project paths the binary derives from a canonicalised `--cwd`.
+    // The temporary directory is behind a symlink on macOS.
+    fs::canonicalize(&dir).expect("resolve the temporary directory")
 }
 
 /// Run `j-menu --show-config` with the search starting at `dir`.
@@ -30,6 +33,19 @@ fn show_config(dir: &Path) -> String {
     let empty_home = dir.join(".empty-home");
     fs::create_dir_all(&empty_home).expect("create the fake home");
     show_config_with_home(dir, &empty_home)
+}
+
+/// Where the binary looks for the per-user directory when `HOME` and
+/// `XDG_CONFIG_HOME` are both `home`. `dirs::config_dir()` ignores
+/// `XDG_CONFIG_HOME` on macOS and goes by `HOME`.
+fn user_config_dir(home: &Path) -> PathBuf {
+    if cfg!(target_os = "macos") {
+        home.join("Library")
+            .join("Application Support")
+            .join("j-menu")
+    } else {
+        home.join("j-menu")
+    }
 }
 
 /// The same, with the per-user configuration directory under `home`.
@@ -258,7 +274,7 @@ fn the_per_user_file_runs_in_the_working_directory_by_default() {
     // ~/.config/j-menu would be useless for every one of them.
     let root = tempdir("user-config-default");
     let home = root.join("home");
-    let user_dir = home.join("j-menu");
+    let user_dir = user_config_dir(&home);
     fs::create_dir_all(&user_dir).unwrap();
     fs::write(
         user_dir.join("config.yaml"),
@@ -281,7 +297,7 @@ fn the_per_user_file_runs_in_the_working_directory_by_default() {
 fn the_per_user_file_can_still_ask_for_its_own_directory() {
     let root = tempdir("user-config-opts-in");
     let home = root.join("home");
-    let user_dir = home.join("j-menu");
+    let user_dir = user_config_dir(&home);
     fs::create_dir_all(&user_dir).unwrap();
     fs::write(
         user_dir.join("config.yaml"),
