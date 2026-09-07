@@ -15,7 +15,7 @@ pub struct ConfigFile {
     #[serde(default)]
     pub menu: Vec<MenuItem>,
 
-    /// When `true`, the entries of this file run in the directory `jj-menu`
+    /// When `true`, the entries of this file run in the directory `j-menu`
     /// was started from instead of the directory holding the file.
     ///
     /// `None` means the file said nothing, which is not the same as `false`:
@@ -80,7 +80,7 @@ pub struct MenuItem {
     pub run_in_current_directory: Option<bool>,
 
     /// Directory this entry runs in, filled in while loading; `None` means the
-    /// directory `jj-menu` was started from.
+    /// directory `j-menu` was started from.
     ///
     /// Not a configuration key — `deny_unknown_fields` rejects a file that
     /// tries to set it, which is why it is skipped rather than defaulted.

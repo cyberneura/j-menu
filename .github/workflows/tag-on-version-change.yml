@@ -78,7 +78,7 @@ jobs:
         id: version
         run: |
           VERSION=$(cargo metadata --format-version 1 --no-deps \
-            | jq -r '.packages[] | select(.name == "jj-menu") | .version')
+            | jq -r '.packages[] | select(.name == "j-menu") | .version')
           if [ -z "$VERSION" ]; then
             echo "::error::could not read the version out of Cargo.toml"
             exit 1

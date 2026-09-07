@@ -432,7 +432,7 @@ mod tests {
     const JAVA: &str = "plugins {\n    id 'java'\n}\n";
 
     fn tempdir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("jj-menu-gradle-{name}"));
+        let dir = std::env::temp_dir().join(format!("j-menu-gradle-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

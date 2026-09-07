@@ -26,7 +26,7 @@ pub fn build(config: &Config, start_dir: &Path) -> Vec<MenuItem> {
     }
 
     // With nothing configured, a lone launcher group would just be a submenu
-    // wrapping the whole menu, so unwrap it: `jj` in a Node project is then
+    // wrapping the whole menu, so unwrap it: `j` in a Node project is then
     // directly a list of npm scripts.
     if config.menu.is_empty() && items.len() == 1 {
         let only = items.remove(0);
@@ -44,7 +44,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn tempdir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("jj-menu-menu-{name}"));
+        let dir = std::env::temp_dir().join(format!("j-menu-menu-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

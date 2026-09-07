@@ -1,7 +1,7 @@
-# jj-menu
+# j-menu
 
-A simple TUI menu launcher. Type `jj`, press Enter, pick a command with `j`/`k`,
-run it with Enter.
+A simple TUI menu launcher. Type `j`, press Enter, pick a command with the
+arrow keys (or `j`/`k`), run it with Enter.
 
 This is a Rust rewrite of the Python [ytyng/jj-menu](https://github.com/ytyng/jj-menu).
 The idea is the same — a per-project list of commands you can reach in two
@@ -21,35 +21,51 @@ binaries are published.
 ### Homebrew
 
 ```shell
-brew install cyberneura/tap/jj-menu
+brew install cyberneura/tap/j-menu
 ```
 
 ### Cargo
 
 ```shell
-cargo install jj-menu
+cargo install j-menu
 ```
 
 ### Shell function
 
-The binary is `jj-menu`. Add the wrapper function to get the short `jj` command,
+The binary is `j-menu`. Add the wrapper function to get the short `j` command,
 and so that entries like `cd /tmp` or `export FOO=1` affect *your* shell rather
 than a child process:
 
 ```shell
 # ~/.zshrc
-eval "$(jj-menu --shell-init zsh)"
+eval "$(j-menu --shell-init zsh)"
 
 # ~/.bashrc
-eval "$(jj-menu --shell-init bash)"
+eval "$(j-menu --shell-init bash)"
 
 # ~/.config/fish/config.fish
-jj-menu --shell-init fish | source
+j-menu --shell-init fish | source
 ```
 
-Calling the binary by a path -- `eval "$(~/src/jj-menu/target/release/jj-menu
+Calling the binary by a path -- `eval "$(~/src/j-menu/target/release/j-menu
 --shell-init zsh)"` -- works too: the generated function then calls that same
-path, so `jj` works when the binary is not on `PATH`.
+path, so `j` works when the binary is not on `PATH`.
+
+`j` is also the function [autojump](https://github.com/wting/autojump) defines.
+If you use autojump, rename the function on its first line, here to `m`:
+
+```shell
+eval "$(j-menu --shell-init zsh | sed '1s/^j()/m()/')"            # bash, zsh
+j-menu --shell-init fish | sed '1s/^function j$/function m/' | source
+```
+
+Or drop autojump for [zoxide](https://github.com/ajeetdsouza/zoxide), whose
+command is `z`.
+
+This project was `jj-menu` until 0.3.0; the `jj` command now belongs to
+[Jujutsu](https://github.com/jj-vcs/jj). Configuration files are renamed with
+it: `.jj-menu.yaml` becomes `.j-menu.yaml`, and `~/.config/jj-menu/` becomes
+`~/.config/j-menu/`. The old names are not read.
 
 The fish function needs **fish 3.4 or newer**. It relies on quoted command
 substitution (`"$(...)"`), which is what keeps a multi-line entry in one piece;
@@ -58,13 +74,13 @@ older versions split it on newlines.
 The wrapper also pushes the command into your shell history, so the usual
 recall-and-edit workflow keeps working.
 
-Without the wrapper, `jj-menu` runs the command itself; everything works except
+Without the wrapper, `j-menu` runs the command itself; everything works except
 changes to the shell's own state.
 
 ## Usage
 
 ```
-jj-menu [OPTIONS]
+j-menu [OPTIONS]
 
   --print              Print the selected command instead of running it
   --shell-init <SHELL> Print the shell function (bash, zsh, fish)
@@ -141,7 +157,7 @@ so they stay visible.
 
 ### Exit codes
 
-`jj-menu` exits with the exit code of the command it ran, so `jj && something`
+`j-menu` exits with the exit code of the command it ran, so `j && something`
 behaves as expected. A command killed by a signal reports `128 + signal`, the
 same as in bash and zsh. Dismissing the menu without choosing anything exits
 `130` (the conventional "interrupted" code), which the shell wrapper treats as
@@ -150,7 +166,7 @@ same as in bash and zsh. Dismissing the menu without choosing anything exits
 ## Configuration
 
 Configuration files are searched for in the current directory and every ancestor,
-nearest first, and then in `~/.config/jj-menu/`. Every file that is found is
+nearest first, and then in `~/.config/j-menu/`. Every file that is found is
 merged, in that order.
 
 ### File names
@@ -158,8 +174,8 @@ merged, in that order.
 Any of these base names:
 
 ```
-.jj-menu   _jj-menu   jj-menu
-.jj-menu.local   _jj-menu.local   jj-menu.local
+.j-menu   _j-menu   j-menu
+.j-menu.local   _j-menu.local   j-menu.local
 ```
 
 with any of these extensions:
@@ -168,11 +184,11 @@ with any of these extensions:
 .yaml   .yml   .toml   .json
 ```
 
-The per-user file is `~/.config/jj-menu/config.{yaml,yml,toml,json}` (or the
+The per-user file is `~/.config/j-menu/config.{yaml,yml,toml,json}` (or the
 platform equivalent of `$XDG_CONFIG_HOME`).
 
 Within one directory the shared file is loaded before the `.local` one, so a
-`.jj-menu.local.yaml` can add personal entries without touching the file that is
+`.j-menu.local.yaml` can add personal entries without touching the file that is
 committed to the repository.
 
 ### Format
@@ -240,7 +256,7 @@ shell = "pnpm dev"
 | `help` | Description shown above the status line while the entry is selected, and in the detail view. |
 | `submenu` | Nested entries, opened with `l` / `→`. |
 | `args` | Values prompted for and substituted into `shell`. |
-| `run_in_current_directory` | Run this entry where `jj` was typed instead of where the file lives. |
+| `run_in_current_directory` | Run this entry where `j` was typed instead of where the file lives. |
 
 Each `args` entry has a `name` (the `{name}` placeholder in `shell`), and
 optionally a `prompt` and a `default`.
@@ -257,7 +273,7 @@ argument is left alone, so `${HOME}` and `a{1,2}` survive unharmed.
 ### Where a command runs
 
 **An entry runs in the directory of the configuration file that declared it**,
-not in the directory you happened to type `jj` in. A file at the root of a
+not in the directory you happened to type `j` in. A file at the root of a
 repository can therefore say
 
 ```yaml
@@ -271,7 +287,7 @@ it and without knowing how deep you are.
 
 The per-user file is the exception. It belongs to no project, its entries are
 written to be run wherever you are, and running them in
-`~/.config/jj-menu/` would be useless — so its entries default to the working
+`~/.config/j-menu/` would be useless — so its entries default to the working
 directory instead.
 
 `run_in_current_directory: true` asks for the working directory explicitly. It
@@ -290,7 +306,7 @@ menu:
     run_in_current_directory: false   # ... except this one
 ```
 
-`jj-menu --show-config` reports the directory each file's entries run in by
+`j-menu --show-config` reports the directory each file's entries run in by
 default; an entry that overrides it is not listed separately.
 
 Two things follow from this:
@@ -333,7 +349,7 @@ a guess about which of the two Enter should run.
 - **Ctrl-C stops the whole group.** Each command runs in a process group of its
   own, and the signal goes to the group, so it also reaches whatever that
   command started — `sleep 300; echo done` stops, not just the shell in front of
-  it. `jj-menu` waits for them all before returning, so the group is not left
+  it. `j-menu` waits for them all before returning, so the group is not left
   writing to the terminal behind your prompt, and a second Ctrl-C kills what has
   not stopped by then. A process a command *detached* on purpose (`something &`,
   `nohup`) is not followed, the same as when a shell you typed into exits.
@@ -346,7 +362,7 @@ a guess about which of the two Enter should run.
   apart. Anything interactive belongs in a plain `shell`.
 - **The shell wrapper does not evaluate a group.** `--print` hands a single
   command back to your shell so that `cd` and `export` reach it; a group is
-  several separate processes, none of which could do that, so `jj-menu` runs it
+  several separate processes, none of which could do that, so `j-menu` runs it
   itself and prints nothing. Everything above applies either way.
 
 ### Not merging
@@ -371,12 +387,12 @@ first.
 
 A file skipped this way is not parsed either, so an error inside it is not
 reported while it stays inactive: a fallback nobody is reading must not be able
-to stop `jj` from opening. The flip side is that `--show-config` says nothing
+to stop `j` from opening. The flip side is that `--show-config` says nothing
 about such a file — check it from a directory where it is the nearest one.
 
 ## Automatic launchers
 
-With no configuration at all, `jj-menu` still has something to show: it looks
+With no configuration at all, `j-menu` still has something to show: it looks
 for project files in the current directory and its ancestors.
 
 | Source | Entries |
@@ -386,7 +402,7 @@ for project files in the current directory and its ancestors.
 | `Cargo.toml` | `build`, `test`, `check`, and `run` — named per binary when there are several, omitted when there is none, and carrying `--features` for a target with `required-features` — plus `fmt` and `clippy` when those components are installed |
 | Gradle | `tasks`, plus the lifecycle tasks (`build`, `clean`, `assemble`, `check`, and `test`) that the plugins declared by the build script define, using `./gradlew` when present — the wrapper is looked up separately from the build script, so a root wrapper is used for a subproject |
 
-In a Node project with no jj-menu file, `jj` is therefore just a list of npm
+In a Node project with no j-menu file, `j` is therefore just a list of npm
 scripts.
 
 When several sources are found, each becomes a submenu so the top level stays
@@ -464,13 +480,13 @@ stays on — put every switch you need in the same file.
 
 ## Agent skill
 
-`skills/jj-menu/` is an agent skill describing the configuration format, so a
+`skills/j-menu/` is an agent skill describing the configuration format, so a
 coding agent can write and edit menu files for you. Install it with the
 [skills](https://github.com/vercel-labs/skills) CLI:
 
 ```shell
-npx skills add cyberneura/jj-menu            # into ./<agent>/skills/
-npx skills add cyberneura/jj-menu -g         # into ~/<agent>/skills/, all projects
+npx skills add cyberneura/j-menu            # into ./<agent>/skills/
+npx skills add cyberneura/j-menu -g         # into ~/<agent>/skills/, all projects
 ```
 
 It works with Claude Code, Codex, Cursor, OpenCode and the rest of the agents
@@ -481,7 +497,7 @@ choice is ambiguous; `-a <agent>` picks explicitly.
 
 `.cson` (CoffeeScript Object Notation) configuration files are **not** read.
 There is no maintained CSON parser for Rust, and writing one is out of
-proportion to the format's use. A `.jj-menu.cson` is ignored, not reported as an
+proportion to the format's use. A `.j-menu.cson` is ignored, not reported as an
 error. Use YAML, which CSON was modelled on.
 
 ## Development

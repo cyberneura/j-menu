@@ -33,7 +33,7 @@ static ORIGINAL: AtomicPtr<libc::termios> = AtomicPtr::new(ptr::null_mut());
 ///
 /// `SIGPIPE` is deliberately absent. Rust ignores it so that a closed pipe
 /// surfaces as an `EPIPE` error, and handling it here would turn
-/// `jj-menu --print | head` from a clean write error into a killed process.
+/// `j-menu --print | head` from a clean write error into a killed process.
 const TERMINATING: &[libc::c_int] = &[libc::SIGHUP, libc::SIGINT, libc::SIGQUIT, libc::SIGTERM];
 
 /// What each of `TERMINATING` was set to before the menu armed its handler,

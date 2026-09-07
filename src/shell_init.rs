@@ -39,16 +39,16 @@ fn shell_quote(value: &str) -> String {
 
 /// The command word the snippet uses to call back into this program.
 ///
-/// A binary reached through `PATH` stays `command jj-menu`: that survives the
+/// A binary reached through `PATH` stays `command j-menu`: that survives the
 /// binary being moved or upgraded and reads as intended in a startup file. One
-/// invoked by a path -- `~/src/jj-menu/target/release/jj-menu --shell-init
+/// invoked by a path -- `~/src/j-menu/target/release/j-menu --shell-init
 /// zsh` -- is not on `PATH` under that name, so the running executable's own
-/// path is quoted in instead; `command jj-menu` would otherwise define `jj` as
+/// path is quoted in instead; `command j-menu` would otherwise define `j` as
 /// a call to a command the shell cannot find.
 pub fn program() -> String {
     let argv0 = std::env::args_os().next().unwrap_or_default();
     if !std::path::Path::new(&argv0).to_string_lossy().contains('/') {
-        return "command jj-menu".to_string();
+        return "command j-menu".to_string();
     }
     let path = std::env::current_exe().unwrap_or_else(|_| argv0.into());
     format!("command {}", shell_quote(&path.to_string_lossy()))
@@ -63,22 +63,22 @@ pub fn snippet(kind: ShellKind, program: &str) -> String {
         // `local` keeps the variable out of the interactive shell, and the
         // status check makes a cancelled menu (exit 130) a no-op.
         ShellKind::Bash => format!(
-            r#"jj() {{
-  local __jj_command
-  __jj_command="$({program} --print "$@")" || return $?
-  [ -n "$__jj_command" ] || return 0
-  history -s "$__jj_command"
-  eval "$__jj_command"
+            r#"j() {{
+  local __j_command
+  __j_command="$({program} --print "$@")" || return $?
+  [ -n "$__j_command" ] || return 0
+  history -s "$__j_command"
+  eval "$__j_command"
 }}
 "#
         ),
         ShellKind::Zsh => format!(
-            r#"jj() {{
-  local __jj_command
-  __jj_command="$({program} --print "$@")" || return $?
-  [ -n "$__jj_command" ] || return 0
-  print -s -- "$__jj_command"
-  eval "$__jj_command"
+            r#"j() {{
+  local __j_command
+  __j_command="$({program} --print "$@")" || return $?
+  [ -n "$__j_command" ] || return 0
+  print -s -- "$__j_command"
+  eval "$__j_command"
 }}
 "#
         ),
@@ -86,12 +86,12 @@ pub fn snippet(kind: ShellKind, program: &str) -> String {
         // would turn a multi-line entry into several arguments. The quoted
         // form `"$(...)"` keeps it as one string (fish 3.4+).
         ShellKind::Fish => format!(
-            r#"function jj
-    set -l __jj_command "$({program} --print $argv)"
-    set -l __jj_status $status
-    test $__jj_status -eq 0; or return $__jj_status
-    test -n "$__jj_command"; or return 0
-    commandline -r -- "$__jj_command"
+            r#"function j
+    set -l __j_command "$({program} --print $argv)"
+    set -l __j_status $status
+    test $__j_status -eq 0; or return $__j_status
+    test -n "$__j_command"; or return 0
+    commandline -r -- "$__j_command"
     commandline -f execute
 end
 "#
@@ -112,10 +112,16 @@ mod tests {
     }
 
     #[test]
-    fn every_snippet_defines_a_jj_entry_point() {
+    fn every_snippet_defines_a_j_entry_point() {
+        // The function is the whole interface: `j` must be what gets defined,
+        // not something that merely contains the letter.
+        let head = |kind| match kind {
+            ShellKind::Fish => "function j\n",
+            _ => "j() {\n",
+        };
         for kind in [ShellKind::Bash, ShellKind::Zsh, ShellKind::Fish] {
-            let text = snippet(kind, "command jj-menu");
-            assert!(text.contains("jj"), "{kind:?}");
+            let text = snippet(kind, "command j-menu");
+            assert!(text.starts_with(head(kind)), "{kind:?}: {text}");
             assert!(text.contains("--print"), "{kind:?}");
         }
     }
@@ -124,17 +130,17 @@ mod tests {
     fn the_fish_snippet_keeps_a_multi_line_command_in_one_piece() {
         // An unquoted command substitution splits on newlines, so a `shell:`
         // list would arrive as several arguments.
-        let fish = snippet(ShellKind::Fish, "command jj-menu");
+        let fish = snippet(ShellKind::Fish, "command j-menu");
         assert!(
-            fish.contains(r#""$(command jj-menu --print $argv)""#),
+            fish.contains(r#""$(command j-menu --print $argv)""#),
             "the command substitution must be quoted: {fish}"
         );
         assert!(
-            !fish.contains("(command jj-menu --print $argv)\n"),
+            !fish.contains("(command j-menu --print $argv)\n"),
             "no bare command substitution may remain: {fish}"
         );
         assert!(
-            fish.contains(r#"commandline -r -- "$__jj_command""#),
+            fish.contains(r#"commandline -r -- "$__j_command""#),
             "the variable must be quoted when used: {fish}"
         );
     }
@@ -144,7 +150,7 @@ mod tests {
         // Cancelling exits non-zero and prints nothing; neither must lead to
         // evaluating an empty command.
         for kind in [ShellKind::Bash, ShellKind::Zsh, ShellKind::Fish] {
-            let text = snippet(kind, "command jj-menu");
+            let text = snippet(kind, "command j-menu");
             assert!(text.contains("return"), "{kind:?}");
             assert!(text.contains("-n "), "{kind:?}: no empty check");
         }
@@ -155,7 +161,7 @@ mod tests {
         // Without `command`, the function would call itself in bash and zsh.
         for kind in [ShellKind::Bash, ShellKind::Zsh, ShellKind::Fish] {
             assert!(
-                snippet(kind, "command jj-menu").contains("command jj-menu"),
+                snippet(kind, "command j-menu").contains("command j-menu"),
                 "{kind:?}"
             );
         }
@@ -164,14 +170,14 @@ mod tests {
     #[test]
     fn a_binary_outside_path_is_called_by_its_quoted_path() {
         // The path is what the whole feature is for: a snippet that still says
-        // `jj-menu` would define `jj` as a command the shell cannot find.
-        let program = format!("command {}", shell_quote("/opt/it's here/jj-menu"));
+        // `j-menu` would define `j` as a command the shell cannot find.
+        let program = format!("command {}", shell_quote("/opt/it's here/j-menu"));
         let zsh = snippet(ShellKind::Zsh, &program);
         assert!(
-            zsh.contains(r#"command '/opt/it'\''s here/jj-menu' --print"#),
+            zsh.contains(r#"command '/opt/it'\''s here/j-menu' --print"#),
             "{zsh}"
         );
-        assert!(!zsh.contains("command jj-menu"), "{zsh}");
+        assert!(!zsh.contains("command j-menu"), "{zsh}");
     }
 
     #[test]

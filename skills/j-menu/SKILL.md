@@ -1,33 +1,33 @@
 ---
-name: jj-menu
-description: Write and maintain jj-menu configuration files (.jj-menu.yaml / .toml / .json) — the per-project TUI menu reached by typing `jj`. Use when adding, editing or debugging menu entries, submenus, prompted arguments, commands run in parallel, merge behaviour or automatic launchers, or when the user mentions jj-menu, `.jj-menu.yaml`, or asks to put a command "in the jj menu".
+name: j-menu
+description: Write and maintain j-menu configuration files (.j-menu.yaml / .toml / .json) — the per-project TUI menu reached by typing `j`. Use when adding, editing or debugging menu entries, submenus, prompted arguments, commands run in parallel, merge behaviour or automatic launchers, or when the user mentions j-menu, `.j-menu.yaml`, or asks to put a command "in the j menu".
 ---
 
-# jj-menu configuration
+# j-menu configuration
 
-`jj-menu` is a TUI launcher: the user types `jj`, picks an entry, and the entry's
+`j-menu` is a TUI launcher: the user types `j`, picks an entry, and the entry's
 shell script runs with the TTY attached. Entries come from configuration files
 plus automatic launchers. Unix only.
 
-Full documentation: https://github.com/cyberneura/jj-menu
+Full documentation: https://github.com/cyberneura/j-menu
 
 ## Where the configuration lives
 
 Files are searched in the current directory and every ancestor, nearest first,
 then the per-user `config.{yaml,yml,toml,json}` under the platform configuration
-directory — `~/.config/jj-menu/` on Linux, **`~/Library/Application Support/jj-menu/`
+directory — `~/.config/j-menu/` on Linux, **`~/Library/Application Support/j-menu/`
 on macOS**. Every file found is merged, in that order, unless one of them opts out
 with `merge: false` (below).
 
-Base names: `.jj-menu`, `_jj-menu`, `jj-menu`, and the `.local` variants
-(`.jj-menu.local`, …). Extensions: `.yaml`, `.yml`, `.toml`, `.json`.
+Base names: `.j-menu`, `_j-menu`, `j-menu`, and the `.local` variants
+(`.j-menu.local`, …). Extensions: `.yaml`, `.yml`, `.toml`, `.json`.
 `.cson` is ignored, not an error.
 
 Within one directory the shared file loads before the `.local` one, so a
-`.jj-menu.local.yaml` holds personal entries and stays out of the repository.
+`.j-menu.local.yaml` holds personal entries and stays out of the repository.
 
 **Adding an entry: choose the file by scope, then reuse it.**
-`jj-menu --show-config` lists exactly the files that were loaded, but those span
+`j-menu --show-config` lists exactly the files that were loaded, but those span
 scopes — an ancestor's file is shared with every sibling project, and the
 per-user one is outside the checkout altogether. Reuse the loaded file whose
 scope matches the request; when only broader ones are loaded, create the right
@@ -36,8 +36,8 @@ never asked for it.
 
 | Scope of the request | File |
 | --- | --- |
-| This repository, shared with whoever clones it | `.jj-menu.yaml` at the repository root |
-| This repository, yours only | `.jj-menu.local.yaml` — check that it is gitignored |
+| This repository, shared with whoever clones it | `.j-menu.yaml` at the repository root |
+| This repository, yours only | `.j-menu.local.yaml` — check that it is gitignored |
 | Every project | the per-user file |
 
 ## Format
@@ -89,12 +89,12 @@ A bare list with no `menu:` key is also valid. The same structure works in TOML
 | `help` | Description shown above the status line while the entry is selected, and in the detail view (`l` / `→`). |
 | `submenu` | Nested entries. |
 | `args` | Values prompted for and substituted into `shell`. |
-| `run_in_current_directory` | Run where `jj` was typed instead of where the file lives. |
+| `run_in_current_directory` | Run where `j` was typed instead of where the file lives. |
 
 ### Where a command runs
 
 **An entry runs in the directory of the file that declared it**, not in the
-directory the user typed `jj` in. So a repository-root file writes
+directory the user typed `j` in. So a repository-root file writes
 
 ```yaml
 menu:
@@ -120,7 +120,7 @@ Under the shell wrapper such an entry is evaluated in the user's shell with a
 `cd` in front, which stays in effect afterwards. An entry that must not move the
 user's shell needs `run_in_current_directory: true`.
 
-`jj-menu --show-config` reports the directory each file's entries run in by
+`j-menu --show-config` reports the directory each file's entries run in by
 default. A per-entry override is not shown there — read the file for those.
 
 ### parallel
@@ -156,7 +156,7 @@ and `default`. Arguments are prompted when the entry runs, not in the detail
 view.
 
 Substitution is verbatim — the value is pasted into the script before the shell
-parses it, and jj-menu never escapes it. **Quoting is the template's job**:
+parses it, and j-menu never escapes it. **Quoting is the template's job**:
 `rg {pattern}` lets the input carry flags and its own quoting, `rg "{pattern}"`
 keeps whitespace in a single argument. Double quotes do **not** make it literal —
 `$(...)`, backticks and `$VAR` still expand inside them, and a `"` in the input
@@ -223,13 +223,13 @@ ancestor, and cargo stays on — every switch you need has to be in the same fil
 
 ## Checking a change
 
-**Do not run bare `jj-menu` yourself.** It needs a terminal on both stdin and
-stderr and refuses without one — `jj-menu: no terminal available (stdin is not a
+**Do not run bare `j-menu` yourself.** It needs a terminal on both stdin and
+stderr and refuses without one — `j-menu: no terminal available (stdin is not a
 TTY)`, exit 1. That message means your shell has no TTY, not that the
 configuration is broken. Given a TTY it blocks until a key is pressed. Use:
 
 ```shell
-jj-menu --show-config   # lists the configuration files that were loaded, then exits
+j-menu --show-config   # lists the configuration files that were loaded, then exits
 ```
 
 A file that fails to parse is reported here, including one with an unknown key:
@@ -242,30 +242,30 @@ startup with an error in a part of it nobody reads. So a clean `--show-config` i
 no evidence that a fallback is valid: run it from a directory where that file is
 the nearest one.
 
-To see the menu, ask the user to run `jj`.
+To see the menu, ask the user to run `j`.
 
 `--print` prints the selected command instead of running it, but still opens the
 menu, so it is for the user, not for you.
 
-## Installing jj-menu
+## Installing j-menu
 
-Only if it is missing (`command -v jj-menu`):
+Only if it is missing (`command -v j-menu`):
 
 ```shell
-brew install cyberneura/tap/jj-menu    # or: cargo install jj-menu
+brew install cyberneura/tap/j-menu    # or: cargo install j-menu
 ```
 
-The short `jj` command is a shell function — without it, `cd` or `export` in an
+The short `j` command is a shell function — without it, `cd` or `export` in an
 entry cannot affect the user's shell:
 
 ```shell
-eval "$(jj-menu --shell-init bash)"    # ~/.bashrc
-eval "$(jj-menu --shell-init zsh)"     # ~/.zshrc
-jj-menu --shell-init fish | source     # ~/.config/fish/config.fish, fish 3.4+
+eval "$(j-menu --shell-init bash)"    # ~/.bashrc
+eval "$(j-menu --shell-init zsh)"     # ~/.zshrc
+j-menu --shell-init fish | source     # ~/.config/fish/config.fish, fish 3.4+
 ```
 
 Invoking the binary by a path emits a function that calls that path, so a
-build outside `PATH` still gives a working `jj`.
+build outside `PATH` still gives a working `j`.
 
 The three snippets differ, so pass the shell that is actually being configured —
 the zsh one pushes to history with `print -s`, which bash does not have.

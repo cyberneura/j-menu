@@ -1,21 +1,21 @@
 [package]
-name = "jj-menu"
-version = "0.2.0"
+name = "j-menu"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
-description = "A simple TUI menu launcher. Press `jj` and Enter to pick and run a command."
+description = "A simple TUI menu launcher. Press `j` and Enter to pick and run a command."
 authors = ["Cyberneura"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/cyberneura/jj-menu"
-homepage = "https://github.com/cyberneura/jj-menu"
-documentation = "https://docs.rs/jj-menu"
+repository = "https://github.com/cyberneura/j-menu"
+homepage = "https://github.com/cyberneura/j-menu"
+documentation = "https://docs.rs/j-menu"
 keywords = ["tui", "menu", "launcher", "cli", "terminal"]
 categories = ["command-line-utilities"]
 exclude = ["/.github", "/dist", "/skills"]
 
 [[bin]]
-name = "jj-menu"
+name = "j-menu"
 path = "src/main.rs"
 
 [dependencies]
