@@ -3,6 +3,8 @@
 A simple TUI menu launcher. Type `j`, press Enter, pick a command with the
 arrow keys (or `j`/`k`), run it with Enter.
 
+Website: https://www.cyberneura.com/app/j-menu
+
 This is a Rust rewrite of the Python [ytyng/jj-menu](https://github.com/ytyng/jj-menu).
 The idea is the same — a per-project list of commands you can reach in two
 keystrokes — with a YAML/TOML/JSON configuration, submenus, prompted arguments,
