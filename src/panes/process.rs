@@ -113,7 +113,18 @@ fn signal_listed(signal: Signal, list: &Mutex<Vec<u32>>) {
 /// that ignores it would outlive the screen that started it, with nothing left
 /// to press Ctrl-C at.
 pub fn stop_running_commands(grace: Duration) {
-    interrupt_running_commands();
+    stop_running_commands_with(libc::SIGINT, grace);
+}
+
+/// [`stop_running_commands`], asking with `signal` instead of SIGINT. Used for
+/// a SIGTERM or SIGHUP that j-menu received itself: a server that shuts down
+/// cleanly on SIGTERM may well ignore SIGINT, and would then be killed after
+/// the grace period without having cleaned up. `parallel-merged` passes the
+/// signal on as it arrived, so the panes do the same.
+pub fn stop_running_commands_with(signal: libc::c_int, grace: Duration) {
+    ABANDONED.store(true, Ordering::SeqCst);
+    signal_listed(Signal::Forward(signal), &RUNNING_COMMANDS);
+    signal_listed(Signal::Forward(signal), &LEFTOVER_GROUPS);
     if wait_for_running_commands(grace) {
         return;
     }
@@ -182,6 +193,8 @@ fn wait_for_running_commands(grace: Duration) -> bool {
 enum Signal {
     Interrupt,
     Kill,
+    /// A stop signal j-menu itself received, passed on as it arrived.
+    Forward(libc::c_int),
 }
 
 /// Poisoning carries no meaning here: a panic under one of these locks leaves
@@ -279,6 +292,7 @@ fn signal_process_group(pid: u32, signal: Signal) {
     let signal = match signal {
         Signal::Interrupt => libc::SIGINT,
         Signal::Kill => libc::SIGKILL,
+        Signal::Forward(signal) => signal,
     };
     let Ok(group) = libc::pid_t::try_from(pid) else {
         return;
@@ -670,6 +684,36 @@ mod tests {
         );
         assert!(started.elapsed() < Duration::from_secs(10));
         assert!(lock_ignoring_poison(&RUNNING_COMMANDS).is_empty());
+    }
+
+    #[test]
+    fn a_stop_for_a_received_signal_passes_that_signal_on() {
+        // Arrange: a command that ignores SIGINT and leaves a mark on SIGTERM,
+        // as a server that shuts down cleanly on SIGTERM would.
+        let _serial = exclusive();
+        let dir = std::env::temp_dir().join("j-menu-panes-forward");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut command = shell_command(
+            "trap '' INT; trap 'touch got-term; exit 0' TERM; while :; do sleep 0.1; done",
+        );
+        command.current_dir(&dir);
+        let started = Instant::now();
+
+        // Act
+        thread::scope(|scope| {
+            scope.spawn(move || run_streaming(command, &mut |_| {}));
+            thread::sleep(Duration::from_millis(500));
+            stop_running_commands_with(libc::SIGTERM, Duration::from_secs(5));
+        });
+        ABANDONED.store(false, Ordering::SeqCst);
+
+        // Assert: it got SIGTERM, not SIGINT followed by SIGKILL.
+        assert!(
+            dir.join("got-term").exists(),
+            "the command never saw SIGTERM"
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
     }
 
     #[test]

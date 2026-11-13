@@ -112,7 +112,9 @@ pub fn stop_commands_on_hangup() -> Result<()> {
         // about to end, sees it in time and waits for this thread rather than
         // reaching `exit` with a code of its own.
         EXITING.store(true, Ordering::SeqCst);
-        process::stop_running_commands(STOP_GRACE);
+        // Passed on as it arrived (SIGINT for a Ctrl-C from elsewhere), so a
+        // command that cleans up on SIGTERM gets the chance to.
+        process::stop_running_commands_with(signal, STOP_GRACE);
         // A screen may be up: its session is not dropped on this way out, and
         // the terminal would be left in raw mode on the alternate screen. No
         // new screen may start from here on either, which `EXITING` sees to.
