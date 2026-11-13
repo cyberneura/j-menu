@@ -24,7 +24,8 @@ handler, where nothing that locks may be called.
 | `src/menu.rs` | Builds the menu from configuration plus launchers |
 | `src/ui/` | The interactive menu: `mod.rs` drawing, `state.rs` navigation and the incremental search, `prompt.rs` line editing, `theme.rs` colours |
 | `src/exec.rs` | Running the selected script |
-| `src/parallel.rs` | Running a `parallel:` group: one shell per member, and passing Ctrl-C on to all of them |
+| `src/parallel.rs` | Running a `parallel-merged:` group: one shell per member writing to the terminal, and passing Ctrl-C on to all of them |
+| `src/panes/` | Running a `parallel:` group in panes, one per member. Ported from cyberneura/parun (see below) |
 | `src/signal.rs` | Restoring the terminal when a signal kills the process |
 | `src/shell_init.rs` | The `j` wrapper function for bash / zsh / fish |
 | `tests/` | Integration tests for configuration merging |
@@ -141,6 +142,38 @@ of any automated check.
 - **Letters are text while the search is open**, which is why `classify_search`
   maps movement to the arrows and to `Ctrl-N` / `Ctrl-P` only, and why the
   search string has no cursor of its own (that would need ← and →).
+
+## Working on the panes (`parallel:`)
+
+`src/panes/` is cyberneura/parun's `process.rs` / `runner.rs` / `screen.rs` /
+`terminal.rs` / `text.rs`, copied with as few changes as possible so that a fix
+can be carried over in either direction. What differs from parun, and must stay
+different:
+
+- **The screen is drawn on stderr** (`TerminalSession::out`), never stdout:
+  under `--print` stdout is the wrapper's command substitution, and anything
+  written there would be *evaluated*. The members write into pipes that feed the
+  panes, so nothing they print reaches stdout either.
+- **Members run in `$SHELL -c`** (`process::shell_command` calls
+  `exec::login_shell`), like every other entry, where parun uses `sh -c`.
+- **The Windows branches are removed** (j-menu is Unix only).
+- **Summary and exit code live in `panes/mod.rs`**, not in parun's `main.rs`.
+  The exit code is the first failure in written order (the same rule as
+  `parallel-merged`), 1 for a member that never ran, and 130 for a group stopped
+  with Ctrl-C whose members all exited 0 anyway — parun itself only exits 0 or 1.
+- `terminal::stop_commands_on_hangup` installs signal-hook handlers for
+  SIGHUP / SIGINT / SIGTERM for the rest of the process. It is called only from
+  `panes::run`, after the menu is gone, and never from a test: `parallel.rs`'s
+  tests raise real signals at the test binary and rely on their own handlers.
+
+The process-wide lists in `panes/process.rs` (`RUNNING_COMMANDS`, `ABANDONED`)
+are why its tests take `test_serial`; a new test that starts a pane command has
+to take it too. `parallel.rs` does not touch those lists.
+
+Driving the panes end to end works with the pty recipe below: Enter on the
+entry, wait, read the frames, then Enter again to leave (the navigation keys do
+not leave), and `pgrep` afterwards to see that nothing was left running after a
+Ctrl-C (`\x03`).
 
 ## Verifying a change
 

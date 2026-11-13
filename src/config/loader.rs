@@ -1,6 +1,7 @@
 //! Reading configuration files and merging them into one menu.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 
@@ -13,12 +14,47 @@ use super::model::{AutoLaunchers, ConfigFile, MenuItem};
 /// its own is rejected by the derived `Deserialize`.
 fn validate(items: &[MenuItem], path: &Path) -> Result<()> {
     for item in items {
-        if item.shell.is_some() && !item.parallel.is_empty() {
+        let kinds: Vec<&str> = [
+            ("shell", item.shell.is_some()),
+            ("parallel", !item.parallel.is_empty()),
+            ("parallel-merged", !item.parallel_merged.is_empty()),
+        ]
+        .into_iter()
+        .filter_map(|(name, present)| present.then_some(name))
+        .collect();
+        if kinds.len() > 1 {
             anyhow::bail!(
-                "{}: entry {:?} has both `shell` and `parallel`; \
+                "{}: entry {:?} has both `{}` and `{}`; \
                  use one or the other (a `shell` list already runs sequentially)",
                 path.display(),
-                item.label()
+                item.label(),
+                kinds[0],
+                kinds[1]
+            );
+        }
+        for command in &item.parallel {
+            let Some(seconds) = command.close_after else {
+                continue;
+            };
+            if Duration::try_from_secs_f64(seconds).is_err() {
+                anyhow::bail!(
+                    "{}: `close_after` of {:?} is {seconds}, \
+                     which is not a number of seconds from 0 up",
+                    path.display(),
+                    command.label()
+                );
+            }
+        }
+        if let Some(command) = item
+            .parallel_merged
+            .iter()
+            .find(|command| command.close_after.is_some())
+        {
+            anyhow::bail!(
+                "{}: {:?} has `close_after`, but `parallel-merged` has no panes to close; \
+                 use `parallel` for that",
+                path.display(),
+                command.label()
             );
         }
         validate(&item.submenu, path)?;
@@ -315,6 +351,98 @@ mod tests {
         .to_string();
         assert!(err.contains("both `shell` and `parallel`"), "{err}");
         assert!(err.contains("\"t\""), "the entry is named: {err}");
+    }
+
+    #[test]
+    fn parses_a_merged_parallel_group() {
+        let config = parse_str(
+            "a.yaml",
+            "menu:\n  - title: servers\n    parallel-merged:\n      - shell: npm run dev\n      - shell: npm run api\n",
+        )
+        .unwrap();
+        let item = &config.menu[0];
+        assert!(item.parallel.is_empty());
+        assert_eq!(item.parallel_merged.len(), 2);
+        let (_, mode) = item.parallel_group().expect("a group");
+        assert_eq!(mode, crate::config::ParallelMode::Merged);
+        assert_eq!(
+            item.parallel_group().map(|(commands, _)| commands.len()),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn a_plain_parallel_group_runs_in_panes() {
+        let config = parse_str("a.yaml", "menu:\n  - parallel:\n      - shell: a\n").unwrap();
+        let (_, mode) = config.menu[0].parallel_group().expect("a group");
+        assert_eq!(mode, crate::config::ParallelMode::Panes);
+    }
+
+    #[test]
+    fn rejects_an_entry_with_both_kinds_of_group() {
+        let err = parse_str(
+            "a.yaml",
+            "menu:\n  - title: t\n    parallel:\n      - shell: a\n    parallel-merged:\n      - shell: b\n",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("both `parallel` and `parallel-merged`"),
+            "{err}"
+        );
+        let err = parse_str(
+            "a.yaml",
+            "menu:\n  - title: t\n    shell: a\n    parallel-merged:\n      - shell: b\n",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("both `shell` and `parallel-merged`"), "{err}");
+    }
+
+    #[test]
+    fn reads_close_after_on_a_pane_member() {
+        let config = parse_str(
+            "a.yaml",
+            "menu:\n  - parallel:\n      - shell: a\n        close_after: 1.5\n      - shell: b\n",
+        )
+        .unwrap();
+        let Some(crate::config::Launch::Parallel(jobs, _)) = config.menu[0].launch() else {
+            panic!("a parallel launch");
+        };
+        assert_eq!(
+            jobs[0].close_after,
+            Some(std::time::Duration::from_millis(1500))
+        );
+        assert_eq!(jobs[1].close_after, None);
+    }
+
+    #[test]
+    fn rejects_a_close_after_that_is_not_a_number_of_seconds() {
+        let err = parse_str(
+            "a.yaml",
+            "menu:\n  - parallel:\n      - shell: a\n        close_after: -1\n",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("not a number of seconds"), "{err}");
+        assert!(
+            parse_str(
+                "a.yaml",
+                "menu:\n  - parallel:\n      - shell: a\n        close_after: soon\n",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_close_after_where_there_are_no_panes() {
+        let err = parse_str(
+            "a.yaml",
+            "menu:\n  - parallel-merged:\n      - shell: a\n        close_after: 1\n",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("no panes"), "{err}");
     }
 
     #[test]

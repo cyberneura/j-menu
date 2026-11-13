@@ -209,7 +209,7 @@ menu:
       - make -j
 
   - title: Dev servers
-    # Each of these gets its own shell and they all run at once.
+    # Each of these gets its own shell and they all run at once, in panes.
     parallel:
       - shell: npm run dev
       - title: api
@@ -254,7 +254,8 @@ shell = "pnpm dev"
 | --- | --- |
 | `title` | Label shown in the menu. Defaults to `shell`. |
 | `shell` | Command, or a list of commands run as one script. |
-| `parallel` | Commands to run at the same time, one shell each. |
+| `parallel` | Commands to run at the same time, one shell each, each in a pane of its own. |
+| `parallel-merged` | Commands to run at the same time, one shell each, writing to the terminal directly. |
 | `help` | Description shown above the status line while the entry is selected, and in the detail view. |
 | `submenu` | Nested entries, opened with `l` / `→`. |
 | `args` | Values prompted for and substituted into `shell`. |
@@ -339,14 +340,66 @@ menu:
           - npm start
 ```
 
-A member takes `title` and `shell` and nothing else — it is not a menu level of
-its own, so `submenu`, `help` and `args` have nowhere to appear on it. `shell`
+A member takes `title` and `shell` (and, under `parallel`, `close_after`) —
+it is not a menu level of its own, so `submenu`, `help` and `args` have nowhere
+to appear on it. `shell`
 may be a list there too, which then runs as one script in that member's shell.
 `args` belong to the entry that owns the group and are substituted into every
 member, so the value is asked for once.
 
-An entry may not have both `shell` and `parallel`; that is an error rather than
-a guess about which of the two Enter should run.
+An entry may have only one of `shell`, `parallel` and `parallel-merged`; two of
+them together is an error rather than a guess about which Enter should run.
+
+**`parallel` splits the screen into one pane per command**, the same view as
+[parun](https://github.com/cyberneura/parun). Each pane shows the tail of what
+its command writes, under its `title`, and its title turns green or red when the
+command ends, with the exit status and the time it took. Colours and cursor
+movement in the output are stripped inside a pane. When the terminal is too
+short for every pane to get three rows, the panes give way to one merged log
+with each line prefixed by the command's name.
+
+| Key | Does |
+|---|---|
+| Up / Down, `k` / `j`, Ctrl-P / Ctrl-N | Scroll the active pane by a line |
+| PageUp / PageDown | Scroll it by a page |
+| Home / `g`, End / `G` | Go to the oldest line kept, or back to the tail |
+| `1`-`9`, Tab / Shift-Tab | Pick the active pane |
+| Mouse wheel | Scroll the pane under the pointer |
+| Ctrl-C | Stop the commands; a second one kills them |
+| Enter | Leave, once everything has ended |
+
+The panes stay up when the commands are done, so the output can be read back;
+any key that does not scroll leaves. A summary of every command follows on the
+terminal, and the last 20 lines of each one that failed. While the panes are up
+the mouse is captured for the wheel, so selecting text needs Shift held.
+
+`close_after` on a member closes its pane that many seconds after it *succeeds*,
+and the panes still open share its rows — for the command that is done in a
+moment beside one that keeps going. A failed command keeps its pane:
+
+```yaml
+menu:
+  - title: Dev
+    parallel:
+      - shell: npm run dev
+      - shell: open http://localhost:5173/
+        close_after: 3
+```
+
+**`parallel-merged`** runs the commands the same way, but every one of them
+writes straight to the terminal, as `a & b & wait` would. That keeps colours and
+progress bars intact, and the menu returns the moment the last command exits.
+This is what `parallel` did before 0.4.0.
+
+```yaml
+menu:
+  - title: Dev servers, one log
+    parallel-merged:
+      - shell: npm run dev
+      - shell: npm run api
+```
+
+Both kinds share the rest:
 
 - **Ctrl-C stops the whole group.** Each command runs in a process group of its
   own, and the signal goes to the group, so it also reaches whatever that
@@ -358,7 +411,8 @@ a guess about which of the two Enter should run.
 - **The exit code is the first failure**, in the order the commands are written,
   or 0 when they all succeed. A command killed by the interrupt reports
   `128 + signal`, so a group stopped with Ctrl-C normally exits 130.
-- **Output is interleaved**, exactly as it would be from `a & b & wait`.
+- **Output** is in panes for `parallel`, and interleaved exactly as it would be
+  from `a & b & wait` for `parallel-merged`.
 - **Nothing can read from the keyboard**: the commands get `/dev/null` on
   stdin, because several processes taking turns at the terminal cannot be told
   apart. Anything interactive belongs in a plain `shell`.

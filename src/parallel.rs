@@ -1,4 +1,6 @@
-//! Running a `parallel:` group.
+//! Running a `parallel-merged:` group, whose members write to the terminal
+//! directly. `parallel:` shows its members in panes instead; see
+//! [`crate::panes`].
 //!
 //! Every member gets its own `$SHELL -c`, all of them are started before any of
 //! them is waited for, and the group is finished when the last one has exited —
@@ -384,6 +386,7 @@ mod tests {
         Job {
             title: script.to_string(),
             script: script.to_string(),
+            close_after: None,
         }
     }
 

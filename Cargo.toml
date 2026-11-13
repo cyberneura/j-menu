@@ -1,6 +1,6 @@
 [package]
 name = "j-menu"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.85"
 description = "A simple TUI menu launcher. Press `j` and Enter to pick and run a command."
@@ -26,6 +26,9 @@ dirs = "6.0.0"
 # Only for restoring the terminal from a signal handler (src/signal.rs),
 # which needs tcsetattr / write / raise rather than anything that locks.
 libc = "0.2.180"
+# Stops the commands of a `parallel:` group when the terminal hangs up or the
+# process is told to end while the panes are up (src/panes/terminal.rs).
+signal-hook = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.151"
 serde_yaml_ng = "0.10.0"

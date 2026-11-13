@@ -4,6 +4,7 @@
 //! [`super::loader`] and only the shape is described here.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::Deserialize;
 
@@ -42,8 +43,10 @@ pub struct ConfigFile {
 /// `shell` accepts either a single command or a list of commands. A list is
 /// joined with newlines and handed to the shell as one script, so the commands
 /// run sequentially in the same shell (this is how `cd` followed by another
-/// command keeps working). `parallel` is the other way to run several commands:
-/// each of its entries gets its own shell and they all run at once.
+/// command keeps working). `parallel` and `parallel-merged` are the other way
+/// to run several commands: each of their entries gets its own shell and they
+/// all run at once, either in panes of their own or with their output
+/// interleaved on the terminal.
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct MenuItem {
@@ -55,12 +58,20 @@ pub struct MenuItem {
     #[serde(default)]
     pub shell: Option<Shell>,
 
-    /// Commands to run at the same time, each in its own shell.
+    /// Commands to run at the same time, each in its own shell, with the
+    /// screen split into one pane per command (the way `parun` shows them).
     ///
-    /// Mutually exclusive with `shell`; the loader rejects an entry that has
-    /// both, since which one Enter should run would be a guess.
+    /// Mutually exclusive with `shell` and `parallel-merged`; the loader
+    /// rejects an entry that has more than one, since which one Enter should
+    /// run would be a guess.
     #[serde(default)]
     pub parallel: Vec<ParallelCommand>,
+
+    /// Commands to run at the same time, each in its own shell, writing
+    /// straight to the terminal so their output is interleaved — the shape of
+    /// `a & b & wait`. This is what `parallel` did before it got panes.
+    #[serde(default, rename = "parallel-merged")]
+    pub parallel_merged: Vec<ParallelCommand>,
 
     /// Long description shown in the detail view.
     #[serde(default)]
@@ -104,6 +115,12 @@ pub struct ParallelCommand {
 
     /// Command(s) this member runs, as one script in one shell.
     pub shell: Shell,
+
+    /// Seconds after this member succeeds before its pane closes and the
+    /// others get its rows. Only `parallel` has panes; the loader rejects it
+    /// under `parallel-merged`, and checks that it is a number of seconds.
+    #[serde(default)]
+    pub close_after: Option<f64>,
 }
 
 impl ParallelCommand {
@@ -121,8 +138,17 @@ impl ParallelCommand {
 pub enum Launch {
     /// One script in one shell.
     Script(String),
-    /// Several scripts at once, one shell each.
-    Parallel(Vec<Job>),
+    /// Several scripts at once, one shell each, shown the way `mode` says.
+    Parallel(Vec<Job>, ParallelMode),
+}
+
+/// How a parallel group is shown while it runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParallelMode {
+    /// `parallel`: the screen is split into one pane per command.
+    Panes,
+    /// `parallel-merged`: every command writes to the terminal directly.
+    Merged,
 }
 
 /// One command of a `parallel` group, ready to be spawned.
@@ -130,6 +156,9 @@ pub enum Launch {
 pub struct Job {
     pub title: String,
     pub script: String,
+    /// How long the pane of this command stays once it has succeeded; `None`
+    /// keeps it. Only the panes look at it.
+    pub close_after: Option<Duration>,
 }
 
 /// One or many shell commands.
@@ -255,7 +284,9 @@ impl MenuItem {
         }
         // A `parallel` entry with no title reads as what a shell would be
         // asked to do: `a & b`.
-        self.parallel
+        self.parallel_group()
+            .map(|(commands, _)| commands)
+            .unwrap_or_default()
             .iter()
             .map(|command| command.label())
             .collect::<Vec<_>>()
@@ -277,18 +308,37 @@ impl MenuItem {
         if let Some(script) = self.script() {
             return Some(Launch::Script(script));
         }
-        if self.parallel.is_empty() {
-            return None;
-        }
+        let (commands, mode) = self.parallel_group()?;
         Some(Launch::Parallel(
-            self.parallel
+            commands
                 .iter()
                 .map(|command| Job {
                     title: command.label(),
                     script: command.shell.script(),
+                    // Checked while loading; a value that slipped past (a
+                    // hand-built item) keeps the pane rather than panicking.
+                    close_after: command
+                        .close_after
+                        .and_then(|seconds| Duration::try_from_secs_f64(seconds).ok()),
                 })
                 .collect(),
+            mode,
         ))
+    }
+
+    /// The members of this entry's parallel group and how they are shown, or
+    /// `None` when the entry has no group.
+    ///
+    /// `parallel` first: an entry carrying both is rejected while loading, so
+    /// the order only decides what a hand-built item does.
+    pub fn parallel_group(&self) -> Option<(&[ParallelCommand], ParallelMode)> {
+        if !self.parallel.is_empty() {
+            Some((&self.parallel, ParallelMode::Panes))
+        } else if !self.parallel_merged.is_empty() {
+            Some((&self.parallel_merged, ParallelMode::Merged))
+        } else {
+            None
+        }
     }
 
     /// Whether the detail view has anything to show for this entry.

@@ -201,6 +201,7 @@ impl MenuState {
                 title: Some(format!("Run: {}", item.label())),
                 shell: item.shell.clone(),
                 parallel: item.parallel.clone(),
+                parallel_merged: item.parallel_merged.clone(),
                 args: item.args.clone(),
                 // Everything that decides what running it does has to be
                 // carried over: this row is the same command, reached the
