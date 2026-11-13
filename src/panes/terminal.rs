@@ -99,8 +99,11 @@ const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 /// SIGINT is on the list for a plain run, where a Ctrl-C at the terminal
 /// arrives here as a signal and is passed on to the commands this way.
 pub fn stop_commands_on_hangup() -> Result<()> {
-    use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
-    let mut signals = signal_hook::iterator::Signals::new([SIGHUP, SIGINT, SIGTERM])?;
+    use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
+    // SIGQUIT as well as parun's three: `parallel-merged` stops its commands
+    // on it too, and with the default action j-menu would die with the
+    // terminal raw and the commands still running.
+    let mut signals = signal_hook::iterator::Signals::new([SIGHUP, SIGINT, SIGQUIT, SIGTERM])?;
     std::thread::Builder::new().spawn(move || {
         let Some(signal) = signals.forever().next() else {
             return;

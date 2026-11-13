@@ -161,8 +161,15 @@ different:
   The exit code is the first failure in written order (the same rule as
   `parallel-merged`), 1 for a member that never ran, and 130 for a group stopped
   with Ctrl-C whose members all exited 0 anyway — parun itself only exits 0 or 1.
+- **Colours go through `ui::theme::paint_with`** (`screen::draw` takes the
+  colour mode as an argument), so `NO_COLOR` / `TERM=dumb` reach the panes too.
+- **Member titles are stripped with `text::plain_text` once, in
+  `panes::pane_jobs`.** The pane renderer only measures and cuts text, so an
+  escape in a title from a hostile checkout would otherwise be written on every
+  frame.
 - `terminal::stop_commands_on_hangup` installs signal-hook handlers for
-  SIGHUP / SIGINT / SIGTERM for the rest of the process. It is called only from
+  SIGHUP / SIGINT / SIGQUIT / SIGTERM (SIGQUIT is j-menu's addition, matching
+  `parallel-merged`) for the rest of the process. It is called only from
   `panes::run`, after the menu is gone, and never from a test: `parallel.rs`'s
   tests raise real signals at the test binary and rely on their own handlers.
 

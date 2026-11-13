@@ -50,14 +50,7 @@ pub fn run(jobs: &[Job], cwd: &Path) -> Result<u8> {
     if jobs.is_empty() {
         return Ok(0);
     }
-    let pane_jobs: Vec<runner::Job> = jobs
-        .iter()
-        .map(|job| runner::Job {
-            name: job.title.clone(),
-            command: job.script.clone(),
-            directory: Some(cwd.to_path_buf()),
-        })
-        .collect();
+    let pane_jobs = pane_jobs(jobs, cwd);
     let close_after = jobs.iter().map(|job| job.close_after).collect();
 
     terminal::stop_commands_on_hangup()?;
@@ -92,6 +85,21 @@ pub fn run(jobs: &[Job], cwd: &Path) -> Result<u8> {
     let _ = stderr().write_all(&out);
 
     Ok(exit_code(&outcome.results, outcome.aborted))
+}
+
+/// The jobs as the panes run them.
+fn pane_jobs(jobs: &[Job], cwd: &Path) -> Vec<runner::Job> {
+    jobs.iter()
+        .map(|job| runner::Job {
+            // The title came from a configuration file in the checkout. The
+            // pane renderer only measures and cuts text, so an escape left in
+            // here would reach the terminal on every frame; stripped once,
+            // it is safe in the titles, the merged log and the summary.
+            name: text::plain_text(&job.title),
+            command: job.script.clone(),
+            directory: Some(cwd.to_path_buf()),
+        })
+        .collect()
 }
 
 /// The code the group reports: the first failure in the order the jobs are
@@ -151,12 +159,9 @@ fn write_summary(out: &mut Vec<u8>, jobs: &[runner::Job], results: &[Option<JobR
         .max()
         .unwrap_or(0);
     for (job, (status, elapsed, note)) in jobs.iter().zip(rows) {
-        // The name came from a configuration file in the checkout, and the
-        // summary is written outside the panes, where nothing strips it.
-        let name = text::plain_text(&job.name);
         let mut line = format!(
             "  {status:<status_width$} {elapsed:>7}  {}",
-            pad_to_width(&name, name_width)
+            pad_to_width(&job.name, name_width)
         );
         line.push_str(&note);
         let _ = writeln!(out, "{}", line.trim_end());
@@ -179,7 +184,7 @@ fn write_failure_tails(out: &mut Vec<u8>, jobs: &[runner::Job], results: &[Optio
         let _ = writeln!(
             out,
             "\n\u{2500}\u{2500} {}: last {shown} line{} of output",
-            text::plain_text(&job.name),
+            job.name,
             plural(shown)
         );
         for line in &lines[skip..] {
@@ -255,7 +260,7 @@ mod tests {
                 directory: None,
             },
             runner::Job {
-                name: "api\u{1b}[31m".into(),
+                name: "api".into(),
                 command: "npm run api".into(),
                 directory: None,
             },
@@ -271,15 +276,23 @@ mod tests {
 
         assert!(text.contains("ok"), "{text}");
         assert!(text.contains("exit 2"), "{text}");
-        assert!(
-            !text.contains('\u{1b}'),
-            "a name's escapes are dropped: {text}"
-        );
         assert!(text.contains("api: last 20 lines of output"), "{text}");
         assert!(
             !text.contains("line 10\n"),
             "only the tail is printed: {text}"
         );
         assert!(text.contains("line 30\n"), "{text}");
+    }
+
+    #[test]
+    fn a_title_loses_its_escapes_and_controls_before_it_reaches_a_pane() {
+        let jobs = [Job {
+            title: "api\u{1b}[2J\nserver".into(),
+            script: "true".into(),
+            close_after: None,
+        }];
+        let pane_jobs = pane_jobs(&jobs, Path::new("/tmp"));
+        assert_eq!(pane_jobs[0].name, "apiserver");
+        assert_eq!(pane_jobs[0].directory.as_deref(), Some(Path::new("/tmp")));
     }
 }

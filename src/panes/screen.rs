@@ -8,6 +8,7 @@ use super::{
     terminal::TerminalSession,
     text::{display_width, fit_to_width, plain_text, truncate_to_width},
 };
+use crate::ui::theme::{self, Style};
 use anyhow::Result;
 use crossterm::{
     cursor::MoveTo,
@@ -15,7 +16,7 @@ use crossterm::{
         self, Event as TerminalEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEventKind,
     },
     queue,
-    style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
+    style::Color,
     terminal::{self, Clear, ClearType},
 };
 use std::{
@@ -767,7 +768,18 @@ fn line_color(line: &str) -> Option<Color> {
     line.starts_with('\u{2500}').then_some(Color::DarkGrey)
 }
 
-fn draw(out: &mut impl Write, screen: &Screen, width: usize, height: usize) -> Result<()> {
+/// Writes a frame. Every row goes through the menu's own `theme::paint_with`,
+/// so `NO_COLOR` and `TERM=dumb` turn the colours off here as they do in the
+/// menu; `color` is passed in rather than read so a test can cover both modes.
+/// A pane's outcome is in its title's words as well as its colour, so nothing
+/// is lost without them.
+fn draw(
+    out: &mut impl Write,
+    screen: &Screen,
+    width: usize,
+    height: usize,
+    color: bool,
+) -> Result<()> {
     let rows = screen.frame(width, height);
     let last = rows.len().saturating_sub(1);
     for (index, row) in rows.iter().enumerate() {
@@ -775,18 +787,12 @@ fn draw(out: &mut impl Write, screen: &Screen, width: usize, height: usize) -> R
         if index == last {
             queue!(out, Clear(ClearType::CurrentLine))?;
         }
-        if let Some(color) = row.color {
-            queue!(out, SetForegroundColor(color))?;
-        }
-        if row.bold {
-            queue!(out, SetAttribute(Attribute::Bold))?;
-        }
-        queue!(
-            out,
-            Print(&row.text),
-            SetAttribute(Attribute::Reset),
-            ResetColor
-        )?;
+        let style = Style {
+            fg: row.color,
+            bold: row.bold,
+            ..Style::default()
+        };
+        theme::paint_with(color, out, style, &row.text)?;
     }
     out.flush()?;
     Ok(())
@@ -882,7 +888,13 @@ fn watch(
             // queueing straight onto it would turn every cursor move and colour
             // change of the frame into a write of its own.
             let mut frame = Vec::new();
-            draw(&mut frame, screen, usize::from(width), usize::from(height))?;
+            draw(
+                &mut frame,
+                screen,
+                usize::from(width),
+                usize::from(height),
+                theme::enabled(),
+            )?;
             terminal.out.write_all(&frame)?;
             terminal.out.flush()?;
             dirty = false;
@@ -1084,6 +1096,36 @@ mod tests {
         // Assert
         assert!(rows[1].text.starts_with("green text"), "{}", rows[1].text);
         assert_eq!(display_width(&rows[1].text), 40);
+    }
+
+    #[test]
+    fn draws_without_colour_when_colours_are_off() {
+        let mut screen = planned(2, &["good", "bad"]);
+        for index in 0..2 {
+            screen.apply(Event::Started {
+                worker: index,
+                index,
+            });
+        }
+        screen.apply(Event::Finished {
+            worker: 1,
+            index: 1,
+            result: failed(1),
+        });
+
+        let mut plain = Vec::new();
+        draw(&mut plain, &screen, 60, 11, false).unwrap();
+        let mut coloured = Vec::new();
+        draw(&mut coloured, &screen, 60, 11, true).unwrap();
+
+        // `NO_COLOR` / `TERM=dumb`: no SGR at all, and the outcome is still
+        // there in words. Cursor moves and line clears are not colour.
+        let plain = String::from_utf8(plain).unwrap();
+        assert!(!plain.contains("\u{1b}[38;5;"), "{plain:?}");
+        assert!(!plain.contains("\u{1b}[1m"), "{plain:?}");
+        assert!(plain.contains("FAILED"), "{plain:?}");
+        let coloured = String::from_utf8(coloured).unwrap();
+        assert!(coloured.contains("\u{1b}[38;5;"), "{coloured:?}");
     }
 
     #[test]
