@@ -228,13 +228,14 @@ fn resolve(item: &MenuItem) -> Result<Option<Launch>> {
     // gets the same values: one prompt, however many shells it starts.
     let launch = match launch {
         Launch::Script(script) => Launch::Script(prompt::substitute(&script, &values)),
-        Launch::Parallel(jobs) => Launch::Parallel(
+        Launch::Parallel(jobs, mode) => Launch::Parallel(
             jobs.into_iter()
                 .map(|job| Job {
-                    title: job.title,
                     script: prompt::substitute(&job.script, &values),
+                    ..job
                 })
                 .collect(),
+            mode,
         ),
     };
     Ok(Some(launch))
@@ -694,7 +695,7 @@ fn footer_text(menu: &MenuState) -> String {
             // `&` between the commands, the way a shell would be told to run
             // them at once, so the status line says which of the two an entry
             // is without spending a word on it.
-            Some(Launch::Parallel(jobs)) => format!(
+            Some(Launch::Parallel(jobs, _)) => format!(
                 "& {}",
                 jobs.iter()
                     .map(|job| one_line(&job.script))
@@ -1126,7 +1127,7 @@ mod tests {
     fn scripts(launch: Launch) -> Vec<String> {
         match launch {
             Launch::Script(script) => vec![script],
-            Launch::Parallel(jobs) => jobs.into_iter().map(|job| job.script).collect(),
+            Launch::Parallel(jobs, _) => jobs.into_iter().map(|job| job.script).collect(),
         }
     }
 
@@ -1138,6 +1139,7 @@ mod tests {
                 .map(|script| crate::config::model::ParallelCommand {
                     title: None,
                     shell: crate::config::model::Shell::One((*script).to_string()),
+                    close_after: None,
                 })
                 .collect(),
             ..Default::default()

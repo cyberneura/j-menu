@@ -85,7 +85,8 @@ A bare list with no `menu:` key is also valid. The same structure works in TOML
 | --- | --- |
 | `title` | Label. Defaults to `shell`. |
 | `shell` | Command, or a list of commands run as one script. |
-| `parallel` | Commands run at the same time, one shell each. |
+| `parallel` | Commands run at the same time, one shell each, in panes that split the screen. |
+| `parallel-merged` | The same, with their output interleaved on the terminal instead of in panes. |
 | `help` | Description shown above the status line while the entry is selected, and in the detail view (`l` / `→`). |
 | `submenu` | Nested entries. |
 | `args` | Values prompted for and substituted into `shell`. |
@@ -123,29 +124,48 @@ user's shell needs `run_in_current_directory: true`.
 `j-menu --show-config` reports the directory each file's entries run in by
 default. A per-entry override is not shown there — read the file for those.
 
-### parallel
+### parallel and parallel-merged
 
 A `shell` list runs sequentially in one shell; `parallel` starts every entry
 under it in its own shell at the same time and finishes when the last one exits.
 Use it for the things a person would otherwise open two terminals for — a dev
 server plus its API, a watcher plus a test runner.
 
-A member takes **`title` and `shell` only** (`shell` may be a list, which then
-runs as one script in that member's shell). `submenu`, `help` and `args` are not
-accepted there — a member is not a menu level. `args` go on the entry that owns
-the group and are substituted into every member, so the value is asked for once.
+**`parallel` splits the screen into one pane per member** (the same view as the
+`parun` command): each pane shows the tail of that member's output, titled with
+its `title`, and turns green or red when it ends. Up/Down, j/k, PageUp/PageDown,
+Home/End scroll the active pane, 1-9 / Tab pick the pane, the mouse wheel
+scrolls the pane under it. Once everything has ended the panes stay up to be
+read; Enter leaves, and a summary plus the last 20 lines of each failed member
+are printed. Colours and cursor movement in the output are stripped inside a
+pane.
 
-**`shell` and `parallel` on the same entry is an error**, not a combination.
+**`parallel-merged`** is the older behaviour: every member writes straight to
+the terminal, so the output interleaves exactly as `a & b & wait` would, and the
+menu returns as soon as the last one exits. Use it when the raw output matters
+(colours, progress bars) or when the group is expected to be piped somewhere.
 
-What to tell the user about it:
+A member takes **`title` and `shell`** (`shell` may be a list, which then
+runs as one script in that member's shell), and under `parallel` also
+**`close_after`**: seconds after that member *succeeds* before its pane closes
+and the others take its rows (0 closes it at once; a failed member's pane always
+stays). `close_after` under `parallel-merged` is an error — there is no pane.
+`submenu`, `help` and `args` are not accepted on a member — a member is not a
+menu level. `args` go on the entry that owns the group and are substituted into
+every member, so the value is asked for once.
+
+**`shell`, `parallel` and `parallel-merged` are mutually exclusive** on one
+entry; two of them together is an error, not a combination.
+
+What to tell the user about both:
 
 - Ctrl-C stops the whole group, including what a command started rather than
   exec'd; a second one kills whatever ignored the first.
 - The exit code is the first failure in written order, or 0 if all succeed. A
   command killed by the interrupt reports `128 + signal`, so an interrupted
   group normally exits 130.
-- Output interleaves, and stdin is `/dev/null` — nothing in a group can prompt
-  for input. Anything interactive needs a plain `shell` entry.
+- stdin is `/dev/null` — nothing in a group can prompt for input. Anything
+  interactive needs a plain `shell` entry.
 - The shell wrapper cannot evaluate a group, so `cd` in one has no effect on the
   user's shell (it never could: each member is a separate process).
 

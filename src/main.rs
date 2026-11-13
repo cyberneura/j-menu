@@ -6,6 +6,7 @@ mod config;
 mod exec;
 mod launchers;
 mod menu;
+mod panes;
 mod parallel;
 mod shell_init;
 mod signal;
@@ -18,7 +19,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use config::Launch;
+use config::{Launch, ParallelMode};
 use shell_init::ShellKind;
 
 /// Exit code used when the menu is dismissed without choosing anything.
@@ -157,7 +158,7 @@ fn run() -> Result<ExitCode> {
             // behave the way they would for a typed command.
             Ok(ExitCode::from(exec::exit_code(status)))
         }
-        ui::Outcome::Run(Launch::Parallel(jobs), cwd) => {
+        ui::Outcome::Run(Launch::Parallel(jobs, mode), cwd) => {
             let cwd = cwd.as_deref().unwrap_or(&start_dir);
             // Run here even under `--print`. There is nothing to hand back to
             // the calling shell: the point of `--print` is that `cd` and
@@ -168,6 +169,11 @@ fn run() -> Result<ExitCode> {
             // supports, does not have it.
             for job in &jobs {
                 echo("&", &echo_script(cwd, &job.script, invoked_from.as_deref()))?;
+            }
+            if mode == ParallelMode::Panes {
+                // The panes are drawn on stderr and the commands write into
+                // pipes that feed them, so stdout is left alone either way.
+                return Ok(ExitCode::from(panes::run(&jobs, cwd)?));
             }
             // With `--print` the wrapper is reading stdout through a command
             // substitution and evaluates whatever comes back; a job writing
@@ -328,7 +334,7 @@ Create a configuration file in this directory or an ancestor, for example
     - title: Git log
       shell: git log --oneline --graph --decorate --all
     - title: Dev servers
-      # Each entry gets its own shell and they all run at once; Ctrl-C
+      # Each entry gets its own shell and a pane, and they all run at once; Ctrl-C
       # stops the lot.
       parallel:
         - shell: npm run dev
