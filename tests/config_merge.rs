@@ -6,13 +6,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn bin() -> PathBuf {
-    // `cargo test` builds the binary next to the test executable.
-    let mut path = std::env::current_exe().expect("test executable path");
-    path.pop();
-    if path.ends_with("deps") {
-        path.pop();
-    }
-    path.join("j-menu")
+    // Cargo hands an integration test the path of each binary it built. Where
+    // it puts the test executables themselves is not part of its interface:
+    // `current_exe()/../j-menu` stopped existing on the CI runner's toolchain
+    // (Rust 1.100) and every test here failed to spawn the binary.
+    PathBuf::from(env!("CARGO_BIN_EXE_j-menu"))
 }
 
 fn tempdir(name: &str) -> PathBuf {
